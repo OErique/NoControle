@@ -17,7 +17,6 @@ import {
   Trash2,
   TrendingUp,
   Volume2,
-  WalletCards,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -55,14 +54,8 @@ const QUICK_RESPONSES = [
   { text: "Como funciona o app?", icon: HelpCircle, color: "text-cyan-500" },
 ]
 
-const WAVE_BARS = Array.from({ length: 56 }, (_, index) => {
-  const intensity = 0.45 + Math.sin(index * 0.72) * 0.25 + Math.cos(index * 0.31) * 0.2
-  return {
-    angle: (360 / 56) * index,
-    height: Math.max(9, Math.round(18 + intensity * 22)),
-    delay: index * 0.018,
-  }
-})
+const SILENT_AUDIO =
+  "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGF0YQQAAAAAAA=="
 
 export function CopilotModule({ user }: CopilotModuleProps) {
   const router = useRouter()
@@ -81,6 +74,9 @@ export function CopilotModule({ user }: CopilotModuleProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const recognitionRef = useRef<any>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const audioObjectUrlRef = useRef<string | null>(null)
+  const audioPlaybackResolverRef = useRef<(() => void) | null>(null)
+  const audioUnlockedRef = useRef(false)
   const isProcessingRef = useRef(false)
   const isSpeakingRef = useRef(false)
   const isVoiceModeActiveRef = useRef(false)
@@ -149,7 +145,13 @@ export function CopilotModule({ user }: CopilotModuleProps) {
   useEffect(() => {
     return () => {
       recognitionRef.current?.stop?.()
+      audioPlaybackResolverRef.current?.()
+      audioPlaybackResolverRef.current = null
       audioRef.current?.pause()
+      if (audioObjectUrlRef.current) {
+        URL.revokeObjectURL(audioObjectUrlRef.current)
+        audioObjectUrlRef.current = null
+      }
     }
   }, [])
 
@@ -172,13 +174,58 @@ export function CopilotModule({ user }: CopilotModuleProps) {
     return `Senhor ${firstName}, ${cleanContent.charAt(0).toLowerCase()}${cleanContent.slice(1)}`
   }
 
+  function getAudioElement() {
+    if (!audioRef.current) {
+      const audio = new Audio()
+      audio.preload = "auto"
+      audio.setAttribute("playsinline", "true")
+      audioRef.current = audio
+    }
+
+    return audioRef.current
+  }
+
+  function clearAudioObjectUrl() {
+    if (audioObjectUrlRef.current) {
+      URL.revokeObjectURL(audioObjectUrlRef.current)
+      audioObjectUrlRef.current = null
+    }
+  }
+
+  function stopAudioPlayback() {
+    audioPlaybackResolverRef.current?.()
+    audioPlaybackResolverRef.current = null
+    audioRef.current?.pause()
+  }
+
+  async function unlockAudioPlayback() {
+    if (audioUnlockedRef.current || typeof window === "undefined") return
+
+    const audio = getAudioElement()
+
+    try {
+      audio.muted = true
+      audio.src = SILENT_AUDIO
+      audio.setAttribute("playsinline", "true")
+      await audio.play()
+      audio.pause()
+      audio.currentTime = 0
+      audio.muted = false
+      audioUnlockedRef.current = true
+    } catch {
+      audio.muted = false
+    }
+  }
+
   async function speakMessage(content: string, messageId: string) {
     try {
+      await unlockAudioPlayback()
       setSpeakingMessageId(messageId)
       setIsSpeaking(true)
       setVoiceStatus("Alfred respondendo")
       isSpeakingRef.current = true
-      audioRef.current?.pause()
+      stopAudioPlayback()
+      clearAudioObjectUrl()
 
       const res = await fetch("/api/copilot/speak", {
         method: "POST",
@@ -195,19 +242,34 @@ export function CopilotModule({ user }: CopilotModuleProps) {
 
       const blob = await res.blob()
       const audioUrl = URL.createObjectURL(blob)
-      const audio = new Audio(audioUrl)
-      audioRef.current = audio
+      const audio = getAudioElement()
+      audioObjectUrlRef.current = audioUrl
+      audio.src = audioUrl
+      audio.muted = false
+      audio.setAttribute("playsinline", "true")
 
       await new Promise<void>((resolve, reject) => {
-        audio.onended = () => {
-          URL.revokeObjectURL(audioUrl)
+        const finish = () => {
+          if (audioPlaybackResolverRef.current === finish) {
+            audioPlaybackResolverRef.current = null
+          }
+          clearAudioObjectUrl()
           resolve()
         }
-        audio.onerror = () => {
-          URL.revokeObjectURL(audioUrl)
+        const fail = () => {
+          if (audioPlaybackResolverRef.current === finish) {
+            audioPlaybackResolverRef.current = null
+          }
+          clearAudioObjectUrl()
           reject(new Error("Audio playback failed"))
         }
-        audio.play().catch(reject)
+
+        audioPlaybackResolverRef.current = finish
+        audio.onended = () => {
+          finish()
+        }
+        audio.onerror = fail
+        audio.play().catch(fail)
       })
 
       return true
@@ -294,6 +356,8 @@ export function CopilotModule({ user }: CopilotModuleProps) {
       return
     }
 
+    void unlockAudioPlayback()
+
     const recognition = getRecognition()
     if (!recognition) {
       toast.error("Seu navegador nao suporta conversa por voz")
@@ -320,7 +384,7 @@ export function CopilotModule({ user }: CopilotModuleProps) {
     setLiveTranscript("")
     setVoiceStatus("Conversa pausada")
     recognitionRef.current?.stop?.()
-    audioRef.current?.pause()
+    stopAudioPlayback()
   }
 
   function toggleVoiceMode() {
@@ -374,7 +438,12 @@ export function CopilotModule({ user }: CopilotModuleProps) {
         setTimeout(() => router.refresh(), 1500)
       }
 
-      if (options.autoSpeak !== false && isSpeechConfiguredRef.current) {
+      const shouldSpeak =
+        options.autoSpeak !== false &&
+        isSpeechConfiguredRef.current &&
+        (options.source === "voice" || isVoiceModeActiveRef.current)
+
+      if (shouldSpeak) {
         await speakMessage(assistantMessage.content, assistantMessage.id)
       }
 
@@ -412,8 +481,6 @@ export function CopilotModule({ user }: CopilotModuleProps) {
     setInputValue(text)
     void handleSendMessage(text)
   }
-
-  const voiceOrbState = isSpeaking ? "speaking" : isListening ? "listening" : isProcessing ? "thinking" : "idle"
 
   return (
     <div className="space-y-6">
@@ -492,110 +559,126 @@ export function CopilotModule({ user }: CopilotModuleProps) {
         </div>
       )}
 
-      <AnimatedCard delay={0.25} className="overflow-hidden">
-        <div className="border-b border-border bg-card/95 p-4">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="flex min-w-0 items-center gap-4">
-              <button
-                type="button"
-                onClick={toggleVoiceMode}
-                disabled={!isSpeechConfigured}
-                className="group relative flex h-24 w-24 shrink-0 items-center justify-center rounded-full disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-                aria-label={isVoiceModeActive ? "Encerrar modo voz" : "Iniciar modo voz"}
-              >
-                <span className="absolute h-[74px] w-[74px] rounded-full bg-slate-950 shadow-[0_0_35px_rgba(14,165,233,0.28)]" />
-                <span
-                  className={`absolute h-[72px] w-[72px] rounded-full border transition-colors ${
-                    voiceOrbState === "listening"
-                      ? "border-cyan-300/70 bg-cyan-400/10"
-                      : voiceOrbState === "speaking"
-                        ? "border-emerald-300/70 bg-emerald-400/10"
-                        : voiceOrbState === "thinking"
-                          ? "border-amber-300/70 bg-amber-400/10"
-                          : "border-slate-500/40 bg-slate-900"
-                  }`}
-                />
-                <span className="absolute h-[46px] w-[46px] rounded-full bg-background" />
-                {WAVE_BARS.map((bar, index) => {
-                  const active = isListening || isSpeaking || isProcessing
-                  const color =
-                    voiceOrbState === "speaking"
-                      ? "bg-emerald-300"
-                      : voiceOrbState === "thinking"
-                        ? "bg-amber-300"
-                        : "bg-cyan-300"
-
-                  return (
-                    <motion.span
-                      key={index}
-                      className={`absolute left-1/2 top-1/2 w-[2px] origin-bottom rounded-full ${color}`}
-                      style={{
-                        transform: `rotate(${bar.angle}deg) translateY(-43px)`,
-                      }}
-                      animate={{
-                        height: active ? [bar.height * 0.45, bar.height, bar.height * 0.62] : bar.height * 0.38,
-                        opacity: active ? [0.35, 1, 0.55] : 0.35,
-                      }}
-                      transition={{
-                        duration: active ? 0.95 : 0.2,
-                        delay: active ? bar.delay : 0,
-                        repeat: active ? Infinity : 0,
-                        ease: "easeInOut",
-                      }}
-                    />
-                  )
-                })}
-                <span className="relative flex h-12 w-12 items-center justify-center rounded-full text-cyan-100 transition-transform group-hover:scale-105">
-                  {isProcessing ? (
-                    <Loader2 className="h-6 w-6 animate-spin" />
-                  ) : isSpeaking ? (
-                    <Volume2 className="h-6 w-6" />
-                  ) : isListening ? (
-                    <Mic className="h-6 w-6" />
-                  ) : isVoiceModeActive ? (
-                    <MicOff className="h-6 w-6" />
-                  ) : (
-                    <WalletCards className="h-6 w-6" />
-                  )}
-                </span>
-              </button>
-
-              <div className="min-w-0">
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <span className="rounded-full border border-cyan-500/25 bg-cyan-500/10 px-2.5 py-1 text-xs font-medium text-cyan-500">
+      <AnimatedCard delay={0.25} className="relative overflow-hidden">
+        <AnimatePresence>
+          {isVoiceModeActive && (
+            <motion.div
+              initial={{ opacity: 0, y: 24, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 24, scale: 0.98 }}
+              transition={{ duration: 0.24, ease: "easeOut" }}
+              className="absolute inset-x-3 bottom-24 z-20 sm:inset-x-6"
+            >
+              <div className="mx-auto max-w-md rounded-[28px] border border-cyan-400/20 bg-background/95 p-5 shadow-[0_24px_80px_rgba(8,145,178,0.22)] backdrop-blur-xl">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <span className="rounded-full border border-cyan-500/25 bg-cyan-500/10 px-3 py-1 text-xs font-medium text-cyan-500">
                     {isSpeechConfigured ? "Voz conectada" : "Voz indisponivel"}
                   </span>
-                  <span className="rounded-full border border-border bg-muted px-2.5 py-1 text-xs text-muted-foreground">
-                    {voiceStatus}
-                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={stopVoiceMode}
+                    className="h-8 rounded-full px-3"
+                    aria-label="Encerrar modo voz"
+                  >
+                    <MicOff className="h-4 w-4" />
+                    Encerrar
+                  </Button>
                 </div>
-                <p className="text-sm font-medium">Modo voz do Alfred</p>
-                <p className="mt-1 line-clamp-2 min-h-5 text-sm text-muted-foreground">
-                  {liveTranscript || "Toque no anel e fale naturalmente. Alfred responde e registra no chat."}
-                </p>
-              </div>
-            </div>
 
-            <div className="flex shrink-0 flex-wrap gap-2 md:justify-end">
-              <Button type="button" onClick={toggleVoiceMode} disabled={!isSpeechConfigured || isProcessing} size="sm">
-                {isVoiceModeActive ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-                {isVoiceModeActive ? "Pausar voz" : "Conversar"}
-              </Button>
-              {isVoiceModeActive && (
-                <Button
+                <button
                   type="button"
-                  variant="outline"
-                  size="sm"
                   onClick={startVoiceListening}
-                  disabled={isListening || isProcessing || isSpeaking}
+                  disabled={!isSpeechConfigured || isListening || isProcessing || isSpeaking}
+                  className="group relative mx-auto flex h-44 w-44 items-center justify-center rounded-full disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                  aria-label="Ouvir agora"
                 >
-                  <Mic className="h-4 w-4" />
-                  Ouvir
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
+                  <motion.span
+                    className="absolute h-32 w-32 rounded-full bg-cyan-400/10 blur-2xl"
+                    animate={{
+                      scale: isListening || isSpeaking || isProcessing ? [0.9, 1.15, 0.95] : 0.95,
+                      opacity: isListening || isSpeaking || isProcessing ? [0.35, 0.7, 0.4] : 0.25,
+                    }}
+                    transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+                  />
+                  <svg className="absolute inset-0 h-full w-full" viewBox="0 0 220 220" aria-hidden="true">
+                    <defs>
+                      <linearGradient id="alfredVoiceRing" x1="30" y1="24" x2="190" y2="196">
+                        <stop offset="0%" stopColor="#22d3ee" />
+                        <stop offset="48%" stopColor="#10b981" />
+                        <stop offset="100%" stopColor="#facc15" />
+                      </linearGradient>
+                      <filter id="alfredVoiceGlow">
+                        <feGaussianBlur stdDeviation="3.5" result="blur" />
+                        <feMerge>
+                          <feMergeNode in="blur" />
+                          <feMergeNode in="SourceGraphic" />
+                        </feMerge>
+                      </filter>
+                    </defs>
+                    {[74, 84, 94].map((radius, index) => (
+                      <motion.circle
+                        key={radius}
+                        cx="110"
+                        cy="110"
+                        r={radius}
+                        fill="none"
+                        stroke="url(#alfredVoiceRing)"
+                        strokeDasharray={index === 1 ? "3 12" : "10 18"}
+                        strokeLinecap="round"
+                        strokeWidth={index === 1 ? 3 : 2}
+                        filter="url(#alfredVoiceGlow)"
+                        initial={false}
+                        animate={{
+                          rotate: isListening || isSpeaking || isProcessing ? 360 : 0,
+                          opacity: isListening || isSpeaking || isProcessing ? [0.35, 0.95, 0.45] : 0.35,
+                          scale: isListening || isSpeaking || isProcessing ? [0.98, 1.04, 0.99] : 1,
+                        }}
+                        transition={{
+                          rotate: { duration: 9 + index * 3, repeat: Infinity, ease: "linear" },
+                          opacity: { duration: 1.2 + index * 0.2, repeat: Infinity, ease: "easeInOut" },
+                          scale: { duration: 1.4 + index * 0.2, repeat: Infinity, ease: "easeInOut" },
+                        }}
+                        style={{ transformOrigin: "110px 110px" }}
+                      />
+                    ))}
+                    <motion.circle
+                      cx="110"
+                      cy="110"
+                      r="58"
+                      fill="rgba(2, 6, 23, 0.88)"
+                      stroke="rgba(34, 211, 238, 0.35)"
+                      strokeWidth="1.5"
+                      animate={{
+                        r: isSpeaking ? [56, 62, 58] : isListening ? [58, 64, 58] : 58,
+                      }}
+                      transition={{ duration: 1.1, repeat: Infinity, ease: "easeInOut" }}
+                    />
+                  </svg>
+                  <span className="relative flex h-20 w-20 items-center justify-center rounded-full border border-cyan-300/25 bg-slate-950 text-cyan-100 shadow-[0_0_36px_rgba(34,211,238,0.2)] transition-transform group-hover:scale-105">
+                    {isProcessing ? (
+                      <Loader2 className="h-8 w-8 animate-spin" />
+                    ) : isSpeaking ? (
+                      <Volume2 className="h-8 w-8" />
+                    ) : isListening ? (
+                      <Mic className="h-8 w-8" />
+                    ) : (
+                      <Sparkles className="h-8 w-8 text-amber-300" />
+                    )}
+                  </span>
+                </button>
+
+                <div className="mt-3 text-center">
+                  <p className="text-sm font-medium">{voiceStatus}</p>
+                  <p className="mx-auto mt-1 line-clamp-2 min-h-10 max-w-xs text-sm text-muted-foreground">
+                    {liveTranscript || "Fale naturalmente. Alfred responde e registra tudo no chat."}
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <div className="h-[400px] space-y-4 overflow-y-auto bg-muted/20 p-4">
           {isLoadingHistory ? (
             <div className="flex h-full items-center justify-center">
@@ -732,7 +815,12 @@ export function CopilotModule({ user }: CopilotModuleProps) {
               size="icon"
               onClick={toggleVoiceMode}
               disabled={!isSpeechConfigured}
-              className={isVoiceModeActive ? "bg-emerald-600 hover:bg-emerald-700" : ""}
+              aria-label={isVoiceModeActive ? "Encerrar modo voz" : "Iniciar modo voz"}
+              className={
+                isVoiceModeActive
+                  ? "bg-cyan-500 text-slate-950 shadow-[0_0_22px_rgba(34,211,238,0.35)] hover:bg-cyan-400"
+                  : ""
+              }
             >
               {isVoiceModeActive ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
             </Button>
