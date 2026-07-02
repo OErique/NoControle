@@ -55,6 +55,15 @@ const QUICK_RESPONSES = [
   { text: "Como funciona o app?", icon: HelpCircle, color: "text-cyan-500" },
 ]
 
+const WAVE_BARS = Array.from({ length: 56 }, (_, index) => {
+  const intensity = 0.45 + Math.sin(index * 0.72) * 0.25 + Math.cos(index * 0.31) * 0.2
+  return {
+    angle: (360 / 56) * index,
+    height: Math.max(9, Math.round(18 + intensity * 22)),
+    delay: index * 0.018,
+  }
+})
+
 export function CopilotModule({ user }: CopilotModuleProps) {
   const router = useRouter()
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -144,20 +153,23 @@ export function CopilotModule({ user }: CopilotModuleProps) {
     }
   }, [])
 
-  const getGreeting = () => {
-    const hour = new Date().getHours()
-    if (hour < 12) return "Bom dia"
-    if (hour < 18) return "Boa tarde"
-    return "Boa noite"
-  }
-
   const buildSpeechText = (content: string) => {
     const firstName = String(user?.name || "").trim().split(/\s+/)[0]
-    const cleanContent = content.replace(/^(oi|ola|olá)[,!.\s]+/i, "").trim()
+    const cleanContent = content.replace(/^(oi|ola|olá|olÃ¡)[,!.\s]+/i, "").trim()
 
     if (!firstName) return cleanContent
+    if (new RegExp(`\\b(senhor|senhora|${firstName})\\b`, "i").test(cleanContent)) return cleanContent
+    if (cleanContent.length > 180) return cleanContent
 
-    return `${getGreeting()}, senhor ${firstName}. ${cleanContent}`
+    const address = `senhor ${firstName}`
+    const confirmation = cleanContent.match(/^(pronto|claro|certo|perfeito|beleza|sim)[,!.\s]*(.*)$/i)
+
+    if (confirmation) {
+      const [, opener, rest] = confirmation
+      return `${opener}, ${address}.${rest ? ` ${rest.trim()}` : ""}`
+    }
+
+    return `Senhor ${firstName}, ${cleanContent.charAt(0).toLowerCase()}${cleanContent.slice(1)}`
   }
 
   async function speakMessage(content: string, messageId: string) {
@@ -428,81 +440,6 @@ export function CopilotModule({ user }: CopilotModuleProps) {
         </Button>
       </div>
 
-      <AnimatedCard delay={0.05} className="overflow-hidden border-emerald-500/20 bg-card">
-        <div className="grid gap-6 p-5 md:grid-cols-[170px_1fr] md:items-center">
-          <div className="flex justify-center">
-            <button
-              type="button"
-              onClick={toggleVoiceMode}
-              className="group relative flex h-36 w-36 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-              aria-label={isVoiceModeActive ? "Encerrar conversa por voz" : "Iniciar conversa por voz"}
-            >
-              {isVoiceModeActive && (
-                <>
-                  <span className="absolute h-28 w-28 rounded-full border border-emerald-400/30 animate-ping" />
-                  <span className="absolute h-36 w-36 rounded-full border border-amber-300/20 animate-pulse" />
-                </>
-              )}
-              <span
-                className={`absolute h-28 w-28 rounded-full shadow-2xl transition-all ${
-                  voiceOrbState === "listening"
-                    ? "bg-emerald-500/25 shadow-emerald-500/30"
-                    : voiceOrbState === "speaking"
-                      ? "bg-amber-400/25 shadow-amber-400/30"
-                      : voiceOrbState === "thinking"
-                        ? "bg-sky-500/20 shadow-sky-500/20"
-                        : "bg-slate-700/20 shadow-slate-900/30"
-                }`}
-              />
-              <span className="relative flex h-24 w-24 items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-slate-950 via-emerald-950 to-slate-900 text-amber-200 transition-transform group-hover:scale-105">
-                {isProcessing ? (
-                  <Loader2 className="h-9 w-9 animate-spin" />
-                ) : isSpeaking ? (
-                  <Volume2 className="h-9 w-9" />
-                ) : isListening ? (
-                  <Mic className="h-9 w-9" />
-                ) : isVoiceModeActive ? (
-                  <MicOff className="h-9 w-9" />
-                ) : (
-                  <WalletCards className="h-9 w-9" />
-                )}
-              </span>
-            </button>
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-500">
-                {isSpeechConfigured ? "Voz conectada" : "Voz indisponivel"}
-              </span>
-              <span className="rounded-full border border-border bg-muted px-3 py-1 text-xs text-muted-foreground">
-                {voiceStatus}
-              </span>
-            </div>
-
-            <div>
-              <h2 className="text-lg font-semibold">Conversa ao vivo</h2>
-              <p className="mt-1 min-h-5 text-sm text-muted-foreground">
-                {liveTranscript || "Alfred esta pronto para ouvir seus lancamentos e consultas financeiras."}
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" onClick={toggleVoiceMode} disabled={!isSpeechConfigured || isProcessing}>
-                {isVoiceModeActive ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-                {isVoiceModeActive ? "Encerrar conversa" : "Iniciar conversa"}
-              </Button>
-              {isVoiceModeActive && (
-                <Button type="button" variant="outline" onClick={startVoiceListening} disabled={isListening || isProcessing || isSpeaking}>
-                  <Mic className="h-4 w-4" />
-                  Ouvir agora
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-      </AnimatedCard>
-
       {messages.length === 0 && !isLoadingHistory && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           <AnimatedCard delay={0.05} className="p-4">
@@ -556,6 +493,109 @@ export function CopilotModule({ user }: CopilotModuleProps) {
       )}
 
       <AnimatedCard delay={0.25} className="overflow-hidden">
+        <div className="border-b border-border bg-card/95 p-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex min-w-0 items-center gap-4">
+              <button
+                type="button"
+                onClick={toggleVoiceMode}
+                disabled={!isSpeechConfigured}
+                className="group relative flex h-24 w-24 shrink-0 items-center justify-center rounded-full disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                aria-label={isVoiceModeActive ? "Encerrar modo voz" : "Iniciar modo voz"}
+              >
+                <span className="absolute h-[74px] w-[74px] rounded-full bg-slate-950 shadow-[0_0_35px_rgba(14,165,233,0.28)]" />
+                <span
+                  className={`absolute h-[72px] w-[72px] rounded-full border transition-colors ${
+                    voiceOrbState === "listening"
+                      ? "border-cyan-300/70 bg-cyan-400/10"
+                      : voiceOrbState === "speaking"
+                        ? "border-emerald-300/70 bg-emerald-400/10"
+                        : voiceOrbState === "thinking"
+                          ? "border-amber-300/70 bg-amber-400/10"
+                          : "border-slate-500/40 bg-slate-900"
+                  }`}
+                />
+                <span className="absolute h-[46px] w-[46px] rounded-full bg-background" />
+                {WAVE_BARS.map((bar, index) => {
+                  const active = isListening || isSpeaking || isProcessing
+                  const color =
+                    voiceOrbState === "speaking"
+                      ? "bg-emerald-300"
+                      : voiceOrbState === "thinking"
+                        ? "bg-amber-300"
+                        : "bg-cyan-300"
+
+                  return (
+                    <motion.span
+                      key={index}
+                      className={`absolute left-1/2 top-1/2 w-[2px] origin-bottom rounded-full ${color}`}
+                      style={{
+                        transform: `rotate(${bar.angle}deg) translateY(-43px)`,
+                      }}
+                      animate={{
+                        height: active ? [bar.height * 0.45, bar.height, bar.height * 0.62] : bar.height * 0.38,
+                        opacity: active ? [0.35, 1, 0.55] : 0.35,
+                      }}
+                      transition={{
+                        duration: active ? 0.95 : 0.2,
+                        delay: active ? bar.delay : 0,
+                        repeat: active ? Infinity : 0,
+                        ease: "easeInOut",
+                      }}
+                    />
+                  )
+                })}
+                <span className="relative flex h-12 w-12 items-center justify-center rounded-full text-cyan-100 transition-transform group-hover:scale-105">
+                  {isProcessing ? (
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  ) : isSpeaking ? (
+                    <Volume2 className="h-6 w-6" />
+                  ) : isListening ? (
+                    <Mic className="h-6 w-6" />
+                  ) : isVoiceModeActive ? (
+                    <MicOff className="h-6 w-6" />
+                  ) : (
+                    <WalletCards className="h-6 w-6" />
+                  )}
+                </span>
+              </button>
+
+              <div className="min-w-0">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-cyan-500/25 bg-cyan-500/10 px-2.5 py-1 text-xs font-medium text-cyan-500">
+                    {isSpeechConfigured ? "Voz conectada" : "Voz indisponivel"}
+                  </span>
+                  <span className="rounded-full border border-border bg-muted px-2.5 py-1 text-xs text-muted-foreground">
+                    {voiceStatus}
+                  </span>
+                </div>
+                <p className="text-sm font-medium">Modo voz do Alfred</p>
+                <p className="mt-1 line-clamp-2 min-h-5 text-sm text-muted-foreground">
+                  {liveTranscript || "Toque no anel e fale naturalmente. Alfred responde e registra no chat."}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex shrink-0 flex-wrap gap-2 md:justify-end">
+              <Button type="button" onClick={toggleVoiceMode} disabled={!isSpeechConfigured || isProcessing} size="sm">
+                {isVoiceModeActive ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                {isVoiceModeActive ? "Pausar voz" : "Conversar"}
+              </Button>
+              {isVoiceModeActive && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={startVoiceListening}
+                  disabled={isListening || isProcessing || isSpeaking}
+                >
+                  <Mic className="h-4 w-4" />
+                  Ouvir
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
         <div className="h-[400px] space-y-4 overflow-y-auto bg-muted/20 p-4">
           {isLoadingHistory ? (
             <div className="flex h-full items-center justify-center">
