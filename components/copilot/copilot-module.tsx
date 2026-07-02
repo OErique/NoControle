@@ -45,6 +45,10 @@ type SendOptions = {
   source?: "text" | "voice"
 }
 
+type SpeakOptions = {
+  voiceSessionId?: number
+}
+
 const QUICK_RESPONSES = [
   { text: "Gastei 50 reais de mercado", icon: DollarSign, color: "text-red-500" },
   { text: "Recebi 3000 de salario", icon: TrendingUp, color: "text-green-500" },
@@ -77,6 +81,8 @@ export function CopilotModule({ user }: CopilotModuleProps) {
   const audioObjectUrlRef = useRef<string | null>(null)
   const audioPlaybackResolverRef = useRef<(() => void) | null>(null)
   const audioUnlockedRef = useRef(false)
+  const activeSpeechAbortRef = useRef<AbortController | null>(null)
+  const voiceSessionIdRef = useRef(0)
   const isProcessingRef = useRef(false)
   const isSpeakingRef = useRef(false)
   const isVoiceModeActiveRef = useRef(false)
@@ -147,6 +153,7 @@ export function CopilotModule({ user }: CopilotModuleProps) {
       recognitionRef.current?.stop?.()
       audioPlaybackResolverRef.current?.()
       audioPlaybackResolverRef.current = null
+      activeSpeechAbortRef.current?.abort()
       audioRef.current?.pause()
       if (audioObjectUrlRef.current) {
         URL.revokeObjectURL(audioObjectUrlRef.current)
@@ -195,6 +202,8 @@ export function CopilotModule({ user }: CopilotModuleProps) {
   function stopAudioPlayback() {
     audioPlaybackResolverRef.current?.()
     audioPlaybackResolverRef.current = null
+    activeSpeechAbortRef.current?.abort()
+    activeSpeechAbortRef.current = null
     audioRef.current?.pause()
   }
 
@@ -217,21 +226,36 @@ export function CopilotModule({ user }: CopilotModuleProps) {
     }
   }
 
-  async function speakMessage(content: string, messageId: string) {
+  async function speakMessage(content: string, messageId: string, options: SpeakOptions = {}) {
+    const voiceSessionId = options.voiceSessionId
+    const shouldHonorVoiceSession = typeof voiceSessionId === "number"
+    const speechAbort = new AbortController()
+
     try {
       await unlockAudioPlayback()
+      if (shouldHonorVoiceSession && voiceSessionId !== voiceSessionIdRef.current) return false
+
+      activeSpeechAbortRef.current?.abort()
+      activeSpeechAbortRef.current = speechAbort
       setSpeakingMessageId(messageId)
       setIsSpeaking(true)
       setVoiceStatus("Alfred respondendo")
       isSpeakingRef.current = true
-      stopAudioPlayback()
+      audioPlaybackResolverRef.current?.()
+      audioPlaybackResolverRef.current = null
+      audioRef.current?.pause()
       clearAudioObjectUrl()
 
       const res = await fetch("/api/copilot/speak", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: buildSpeechText(content) }),
+        signal: speechAbort.signal,
       })
+
+      if (speechAbort.signal.aborted || (shouldHonorVoiceSession && voiceSessionId !== voiceSessionIdRef.current)) {
+        return false
+      }
 
       if (!res.ok) {
         const message =
@@ -241,6 +265,10 @@ export function CopilotModule({ user }: CopilotModuleProps) {
       }
 
       const blob = await res.blob()
+      if (speechAbort.signal.aborted || (shouldHonorVoiceSession && voiceSessionId !== voiceSessionIdRef.current)) {
+        return false
+      }
+
       const audioUrl = URL.createObjectURL(blob)
       const audio = getAudioElement()
       audioObjectUrlRef.current = audioUrl
@@ -253,6 +281,9 @@ export function CopilotModule({ user }: CopilotModuleProps) {
           if (audioPlaybackResolverRef.current === finish) {
             audioPlaybackResolverRef.current = null
           }
+          if (activeSpeechAbortRef.current === speechAbort) {
+            activeSpeechAbortRef.current = null
+          }
           clearAudioObjectUrl()
           resolve()
         }
@@ -260,8 +291,15 @@ export function CopilotModule({ user }: CopilotModuleProps) {
           if (audioPlaybackResolverRef.current === finish) {
             audioPlaybackResolverRef.current = null
           }
+          if (activeSpeechAbortRef.current === speechAbort) {
+            activeSpeechAbortRef.current = null
+          }
           clearAudioObjectUrl()
-          reject(new Error("Audio playback failed"))
+          if (speechAbort.signal.aborted) {
+            resolve()
+          } else {
+            reject(new Error("Audio playback failed"))
+          }
         }
 
         audioPlaybackResolverRef.current = finish
@@ -269,19 +307,33 @@ export function CopilotModule({ user }: CopilotModuleProps) {
           finish()
         }
         audio.onerror = fail
+        if (speechAbort.signal.aborted || (shouldHonorVoiceSession && voiceSessionId !== voiceSessionIdRef.current)) {
+          finish()
+          return
+        }
+
         audio.play().catch(fail)
       })
 
       return true
     } catch (error) {
+      if (speechAbort.signal.aborted) return false
       console.error("Error playing Alfred voice:", error)
       toast.error("Nao consegui tocar a voz do Alfred")
       return false
     } finally {
-      setSpeakingMessageId(null)
-      setIsSpeaking(false)
-      isSpeakingRef.current = false
-      if (isVoiceModeActiveRef.current) {
+      if (activeSpeechAbortRef.current === speechAbort) {
+        activeSpeechAbortRef.current = null
+      }
+
+      const isCurrentVoiceSession = !shouldHonorVoiceSession || voiceSessionId === voiceSessionIdRef.current
+      if (isCurrentVoiceSession) {
+        setSpeakingMessageId(null)
+        setIsSpeaking(false)
+        isSpeakingRef.current = false
+      }
+
+      if (isCurrentVoiceSession && isVoiceModeActiveRef.current) {
         setVoiceStatus("Pronto para ouvir")
       }
     }
@@ -367,6 +419,9 @@ export function CopilotModule({ user }: CopilotModuleProps) {
     if (isProcessingRef.current || isSpeakingRef.current) return
 
     try {
+      if (!isVoiceModeActiveRef.current) {
+        voiceSessionIdRef.current += 1
+      }
       setIsVoiceModeActive(true)
       isVoiceModeActiveRef.current = true
       setVoiceStatus("Escutando")
@@ -377,6 +432,7 @@ export function CopilotModule({ user }: CopilotModuleProps) {
   }
 
   function stopVoiceMode() {
+    voiceSessionIdRef.current += 1
     setIsVoiceModeActive(false)
     isVoiceModeActiveRef.current = false
     setIsListening(false)
@@ -444,10 +500,15 @@ export function CopilotModule({ user }: CopilotModuleProps) {
         (options.source === "voice" || isVoiceModeActiveRef.current)
 
       if (shouldSpeak) {
-        await speakMessage(assistantMessage.content, assistantMessage.id)
-      }
-
-      if (options.resumeListening && isVoiceModeActiveRef.current) {
+        const voiceSessionId = voiceSessionIdRef.current
+        setIsProcessing(false)
+        isProcessingRef.current = false
+        void speakMessage(assistantMessage.content, assistantMessage.id, { voiceSessionId }).then((didSpeak) => {
+          if (didSpeak && options.resumeListening && isVoiceModeActiveRef.current && voiceSessionId === voiceSessionIdRef.current) {
+            window.setTimeout(startVoiceListening, 350)
+          }
+        })
+      } else if (options.resumeListening && isVoiceModeActiveRef.current) {
         window.setTimeout(startVoiceListening, 350)
       }
     } catch {

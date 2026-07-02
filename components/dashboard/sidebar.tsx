@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import {
   LayoutDashboard,
   AlertTriangle,
@@ -22,10 +22,11 @@ import {
   Dice5,
   CreditCard,
   Heart,
+  Loader2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 interface SidebarProps {
   user: {
@@ -162,8 +163,10 @@ const social = [
 
 export function DashboardSidebar({ user }: SidebarProps) {
   const pathname = usePathname()
+  const router = useRouter()
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [isMobileOpen, setIsMobileOpen] = useState(false)
+  const [pendingHref, setPendingHref] = useState<string | null>(null)
 
   const modulesAllowed = user.modules_allowed || 1
   const isPremium = modulesAllowed >= 3
@@ -187,6 +190,45 @@ export function DashboardSidebar({ user }: SidebarProps) {
     if (!item.minPlan) return true
     return modulesAllowed >= item.minPlan
   }
+
+  const prefetchHrefs = useMemo(() => {
+    const moduleHrefs = modules.map((module, index) => {
+      const isUnlocked =
+        isPremium ||
+        (modulesAllowed >= 2 && index < 2) ||
+        (user.main_goal === "sair_do_vermelho" && module.id === "debts") ||
+        (user.main_goal === "organizar_financas" && module.id === "finances") ||
+        (user.main_goal === "investir" && module.id === "investments") ||
+        index === 0
+
+      return isUnlocked ? module.href : "/upgrade"
+    })
+    const toolHrefs = tools.map((tool) => tool.href)
+    const socialHrefs = social.map((item) => (!item.minPlan || modulesAllowed >= item.minPlan ? item.href : "/settings?tab=subscription"))
+
+    return Array.from(new Set(["/dashboard", "/settings", "/gambling", ...moduleHrefs, ...toolHrefs, ...socialHrefs]))
+  }, [isPremium, modulesAllowed, user.main_goal])
+
+  useEffect(() => {
+    prefetchHrefs.forEach((href) => {
+      router.prefetch(href)
+    })
+  }, [prefetchHrefs, router])
+
+  useEffect(() => {
+    setPendingHref(null)
+    setIsMobileOpen(false)
+  }, [pathname])
+
+  const handleNavigate = (href: string) => {
+    if (href.split("?")[0] !== pathname) {
+      setPendingHref(href)
+    }
+    setIsMobileOpen(false)
+    router.prefetch(href)
+  }
+
+  const isRoutePending = (href: string) => pendingHref === href
 
   return (
     <>
@@ -268,6 +310,7 @@ export function DashboardSidebar({ user }: SidebarProps) {
           {/* Dashboard link */}
           <Link
             href="/dashboard"
+            onClick={() => handleNavigate("/dashboard")}
             className={cn(
               "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
               pathname === "/dashboard"
@@ -277,6 +320,7 @@ export function DashboardSidebar({ user }: SidebarProps) {
           >
             <LayoutDashboard className="h-5 w-5 shrink-0" />
             {!isCollapsed && <span>Dashboard</span>}
+            {isRoutePending("/dashboard") && <Loader2 className="ml-auto h-3.5 w-3.5 animate-spin" />}
           </Link>
 
           {/* Module section */}
@@ -294,6 +338,7 @@ export function DashboardSidebar({ user }: SidebarProps) {
               <Link
                 key={module.id}
                 href={isUnlocked ? module.href : "/upgrade"}
+                onClick={() => handleNavigate(isUnlocked ? module.href : "/upgrade")}
                 className={cn(
                   "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                   isActive
@@ -307,6 +352,9 @@ export function DashboardSidebar({ user }: SidebarProps) {
                 {!isCollapsed && (
                   <>
                     <span className="flex-1">{module.name}</span>
+                    {isRoutePending(isUnlocked ? module.href : "/upgrade") && (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    )}
                     {!isUnlocked && <Lock className="h-4 w-4" />}
                   </>
                 )}
@@ -329,6 +377,7 @@ export function DashboardSidebar({ user }: SidebarProps) {
               <Link
                 key={tool.id}
                 href={tool.href}
+                onClick={() => handleNavigate(tool.href)}
                 className={cn(
                   "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                   isActive
@@ -342,6 +391,7 @@ export function DashboardSidebar({ user }: SidebarProps) {
                 {!isCollapsed && (
                   <>
                     <span className="flex-1">{tool.name}</span>
+                    {isRoutePending(tool.href) && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                     {tool.badge && isUnlocked && (
                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400">
                         {tool.badge}
@@ -357,6 +407,7 @@ export function DashboardSidebar({ user }: SidebarProps) {
 
           <Link
             href="/gambling"
+            onClick={() => handleNavigate("/gambling")}
             className={cn(
               "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
               pathname.startsWith("/gambling")
@@ -370,6 +421,7 @@ export function DashboardSidebar({ user }: SidebarProps) {
             {!isCollapsed && (
               <>
                 <span className="flex-1">{gamblingItem.name}</span>
+                {isRoutePending("/gambling") && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 {!isGamblingEnabled && <Lock className="h-4 w-4" />}
               </>
             )}
@@ -391,6 +443,7 @@ export function DashboardSidebar({ user }: SidebarProps) {
               <Link
                 key={item.id}
                 href={isUnlocked ? item.href : "/settings?tab=subscription"}
+                onClick={() => handleNavigate(isUnlocked ? item.href : "/settings?tab=subscription")}
                 className={cn(
                   "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                   isActive
@@ -404,6 +457,9 @@ export function DashboardSidebar({ user }: SidebarProps) {
                 {!isCollapsed && (
                   <>
                     <span className="flex-1">{item.name}</span>
+                    {isRoutePending(isUnlocked ? item.href : "/settings?tab=subscription") && (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    )}
                     {item.badge && isUnlocked && (
                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400">
                         {item.badge}
@@ -422,6 +478,7 @@ export function DashboardSidebar({ user }: SidebarProps) {
         <div className="border-t border-sidebar-border p-4">
           <Link
             href="/settings"
+            onClick={() => handleNavigate("/settings")}
             className={cn(
               "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
               pathname === "/settings"

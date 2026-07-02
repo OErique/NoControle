@@ -36,68 +36,67 @@ async function getDashboardData(userId: string) {
   // Update login streak
   await updateStreak(userId, "daily_login")
 
-  // Get total debts
-  const debtsResult = await sql`
-    SELECT 
-      COALESCE(SUM(current_amount), 0) as total_debts,
-      COUNT(*) as debt_count,
-      COALESCE(SUM(minimum_payment), 0) as minimum_payment
-    FROM debts 
-    WHERE user_id = ${userId} AND status = 'active'
-  `
-
-  // Get monthly income/expense for current month
   const currentMonth = new Date().toISOString().slice(0, 7) // YYYY-MM
   const today = new Date().toISOString().split("T")[0]
 
-  const incomeResult = await sql`
-    SELECT COALESCE(SUM(amount), 0) as total_income
-    FROM incomes 
-    WHERE user_id = ${userId} 
-    AND TO_CHAR(date, 'YYYY-MM') = ${currentMonth}
-  `
-
-  const expenseResult = await sql`
-    SELECT COALESCE(SUM(amount), 0) as total_expenses
-    FROM expenses 
-    WHERE user_id = ${userId} 
-    AND TO_CHAR(date, 'YYYY-MM') = ${currentMonth}
-  `
-
-  const allTimeIncomeResult = await sql`
-    SELECT COALESCE(SUM(amount), 0) as total_income
-    FROM incomes 
-    WHERE user_id = ${userId}
-  `
-
-  const allTimeExpenseResult = await sql`
-    SELECT COALESCE(SUM(amount), 0) as total_expenses
-    FROM expenses 
-    WHERE user_id = ${userId}
-  `
-
-  // Get today's expenses
-  const todayExpenseResult = await sql`
-    SELECT COALESCE(SUM(amount), 0) as today_expenses
-    FROM expenses 
-    WHERE user_id = ${userId} 
-    AND date = ${today}
-  `
-
-  // Get fixed expenses (recurring)
-  const fixedExpenseResult = await sql`
-    SELECT COALESCE(SUM(amount), 0) as fixed_expenses
-    FROM expenses 
-    WHERE user_id = ${userId} 
-    AND is_recurring = true
-  `
-
-  // Get total investments
-  const investmentsResult = await sql`
-    SELECT COALESCE(SUM(current_amount), 0) as total_investments
-    FROM investments 
-    WHERE user_id = ${userId} AND status = 'active'
-  `
+  const [
+    debtsResult,
+    incomeResult,
+    expenseResult,
+    allTimeIncomeResult,
+    allTimeExpenseResult,
+    todayExpenseResult,
+    fixedExpenseResult,
+    investmentsResult,
+  ] = await Promise.all([
+    sql`
+      SELECT
+        COALESCE(SUM(current_amount), 0) as total_debts,
+        COUNT(*) as debt_count,
+        COALESCE(SUM(minimum_payment), 0) as minimum_payment
+      FROM debts
+      WHERE user_id = ${userId} AND status = 'active'
+    `,
+    sql`
+      SELECT COALESCE(SUM(amount), 0) as total_income
+      FROM incomes
+      WHERE user_id = ${userId}
+      AND TO_CHAR(date, 'YYYY-MM') = ${currentMonth}
+    `,
+    sql`
+      SELECT COALESCE(SUM(amount), 0) as total_expenses
+      FROM expenses
+      WHERE user_id = ${userId}
+      AND TO_CHAR(date, 'YYYY-MM') = ${currentMonth}
+    `,
+    sql`
+      SELECT COALESCE(SUM(amount), 0) as total_income
+      FROM incomes
+      WHERE user_id = ${userId}
+    `,
+    sql`
+      SELECT COALESCE(SUM(amount), 0) as total_expenses
+      FROM expenses
+      WHERE user_id = ${userId}
+    `,
+    sql`
+      SELECT COALESCE(SUM(amount), 0) as today_expenses
+      FROM expenses
+      WHERE user_id = ${userId}
+      AND date = ${today}
+    `,
+    sql`
+      SELECT COALESCE(SUM(amount), 0) as fixed_expenses
+      FROM expenses
+      WHERE user_id = ${userId}
+      AND is_recurring = true
+    `,
+    sql`
+      SELECT COALESCE(SUM(current_amount), 0) as total_investments
+      FROM investments
+      WHERE user_id = ${userId} AND status = 'active'
+    `,
+  ])
 
   let creditCardPending = 0
   try {
