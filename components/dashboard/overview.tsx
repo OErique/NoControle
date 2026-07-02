@@ -93,9 +93,8 @@ const goalModules = {
 
 export function DashboardOverview({ user, data }: DashboardOverviewProps) {
   const status = getFinancialStatus(data.balance, data.totalDebts)
-  const goalModule = user.main_goal
-    ? goalModules[user.main_goal as keyof typeof goalModules]
-    : goalModules.organizar_financas
+  const goalModule =
+    (user.main_goal ? goalModules[user.main_goal as keyof typeof goalModules] : null) || goalModules.organizar_financas
 
   // Calculate days left in month
   const today = new Date()
