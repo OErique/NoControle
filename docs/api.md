@@ -2,7 +2,7 @@
 
 Base URL local: `http://localhost:3000`
 
-Base URL em producao: use o dominio do Render ou da Vercel.
+Base URL em producao: use o dominio publicado na Vercel.
 
 ## Autenticacao
 

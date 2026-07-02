@@ -41,19 +41,8 @@ A documentacao das rotas esta em [docs/api.md](docs/api.md). A maioria dos endpo
 
 ## Deploy
 
-### Render
-
-O arquivo [render.yaml](render.yaml) configura um Web Service Node no plano gratuito.
-
-Variaveis obrigatorias no Render:
-
-- `DATABASE_URL`
-- `JWT_SECRET`
+A aplicacao esta preparada para deploy na Vercel. Configure `DATABASE_URL` e `JWT_SECRET` no ambiente de producao antes de publicar.
 
 Healthcheck:
 
 - `GET /api/health`
-
-### Vercel
-
-Tambem e possivel publicar a aplicacao inteira na Vercel. Configure as mesmas variaveis (`DATABASE_URL` e `JWT_SECRET`) no projeto antes do deploy de producao.
