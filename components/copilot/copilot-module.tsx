@@ -1,29 +1,30 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
-import { motion, AnimatePresence } from "framer-motion"
+import { useEffect, useRef, useState } from "react"
+import { AnimatePresence, motion } from "framer-motion"
 import {
-  Sparkles,
-  Send,
-  Loader2,
-  Mic,
-  MicOff,
   Crown,
-  Trash2,
-  MessageSquare,
   DollarSign,
   HelpCircle,
   Lightbulb,
-  TrendingUp,
+  Loader2,
+  MessageSquare,
+  Mic,
+  MicOff,
   PiggyBank,
+  Send,
+  Sparkles,
+  Trash2,
+  TrendingUp,
   Volume2,
+  WalletCards,
 } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { toast } from "sonner"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { AnimatedCard } from "@/components/ui/animated-card"
-import { toast } from "sonner"
-import { useRouter } from "next/navigation"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
 interface ChatMessage {
   id: string
@@ -39,12 +40,18 @@ interface CopilotModuleProps {
   hasAccess?: boolean
 }
 
+type SendOptions = {
+  autoSpeak?: boolean
+  resumeListening?: boolean
+  source?: "text" | "voice"
+}
+
 const QUICK_RESPONSES = [
   { text: "Gastei 50 reais de mercado", icon: DollarSign, color: "text-red-500" },
-  { text: "Recebi 3000 de salário", icon: TrendingUp, color: "text-green-500" },
-  { text: "Quanto gastei esse mês?", icon: MessageSquare, color: "text-blue-500" },
+  { text: "Recebi 3000 de salario", icon: TrendingUp, color: "text-green-500" },
+  { text: "Quanto gastei esse mes?", icon: MessageSquare, color: "text-blue-500" },
   { text: "Qual meu saldo atual?", icon: PiggyBank, color: "text-amber-500" },
-  { text: "Me dá dicas pra economizar", icon: Lightbulb, color: "text-purple-500" },
+  { text: "Me da dicas pra economizar", icon: Lightbulb, color: "text-purple-500" },
   { text: "Como funciona o app?", icon: HelpCircle, color: "text-cyan-500" },
 ]
 
@@ -52,8 +59,12 @@ export function CopilotModule({ user }: CopilotModuleProps) {
   const router = useRouter()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputValue, setInputValue] = useState("")
+  const [liveTranscript, setLiveTranscript] = useState("")
+  const [voiceStatus, setVoiceStatus] = useState("Pronto para conversar")
   const [isProcessing, setIsProcessing] = useState(false)
   const [isListening, setIsListening] = useState(false)
+  const [isSpeaking, setIsSpeaking] = useState(false)
+  const [isVoiceModeActive, setIsVoiceModeActive] = useState(false)
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null)
   const [isSpeechConfigured, setIsSpeechConfigured] = useState(false)
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
@@ -61,66 +72,28 @@ export function CopilotModule({ user }: CopilotModuleProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const recognitionRef = useRef<any>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const isProcessingRef = useRef(false)
+  const isSpeakingRef = useRef(false)
+  const isVoiceModeActiveRef = useRef(false)
+  const isSpeechConfiguredRef = useRef(false)
 
-  const isVoiceAllowed = user?.plan_slug === "total"
+  const isPremiumPlan = user?.plan_slug === "total"
 
-  const getGreeting = () => {
-    const hour = new Date().getHours()
-    if (hour < 12) return "Bom dia"
-    if (hour < 18) return "Boa tarde"
-    return "Boa noite"
-  }
+  useEffect(() => {
+    isProcessingRef.current = isProcessing
+  }, [isProcessing])
 
-  const buildSpeechText = (content: string) => {
-    const firstName = String(user?.name || "").trim().split(/\s+/)[0]
-    const cleanContent = content.replace(/^(oi|ola|olá)[,!.\s]+/i, "").trim()
+  useEffect(() => {
+    isSpeakingRef.current = isSpeaking
+  }, [isSpeaking])
 
-    if (!firstName) return cleanContent
+  useEffect(() => {
+    isVoiceModeActiveRef.current = isVoiceModeActive
+  }, [isVoiceModeActive])
 
-    return `${getGreeting()}, senhor ${firstName}. ${cleanContent}`
-  }
-
-  const speakMessage = async (content: string, messageId: string) => {
-    try {
-      setSpeakingMessageId(messageId)
-      audioRef.current?.pause()
-
-      const res = await fetch("/api/copilot/speak", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: buildSpeechText(content) }),
-      })
-
-      if (!res.ok) {
-        const message =
-          res.status === 503 ? "Configure a chave da ElevenLabs para ativar a voz do Alfred" : "Nao consegui gerar a voz"
-        toast.error(message)
-        return
-      }
-
-      const blob = await res.blob()
-      const audioUrl = URL.createObjectURL(blob)
-      const audio = new Audio(audioUrl)
-
-      audioRef.current = audio
-      audio.onended = () => {
-        URL.revokeObjectURL(audioUrl)
-        setSpeakingMessageId(null)
-      }
-      audio.onerror = () => {
-        URL.revokeObjectURL(audioUrl)
-        setSpeakingMessageId(null)
-        toast.error("Nao consegui tocar o audio")
-      }
-
-      await audio.play()
-    } catch (error) {
-      console.error("Error playing Alfred voice:", error)
-      toast.error("Nao consegui tocar a voz do Alfred")
-    } finally {
-      setSpeakingMessageId(null)
-    }
-  }
+  useEffect(() => {
+    isSpeechConfiguredRef.current = isSpeechConfigured
+  }, [isSpeechConfigured])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -165,49 +138,190 @@ export function CopilotModule({ user }: CopilotModuleProps) {
   }, [])
 
   useEffect(() => {
-    if (typeof window !== "undefined" && "webkitSpeechRecognition" in window) {
-      const SpeechRecognition = (window as any).webkitSpeechRecognition
-      recognitionRef.current = new SpeechRecognition()
-      recognitionRef.current.continuous = false
-      recognitionRef.current.interimResults = false
-      recognitionRef.current.lang = "pt-BR"
-
-      recognitionRef.current.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript
-        setInputValue(transcript)
-        setIsListening(false)
-        handleSendMessage(transcript)
-      }
-
-      recognitionRef.current.onerror = () => {
-        setIsListening(false)
-        toast.error("Erro ao capturar voz")
-      }
-
-      recognitionRef.current.onend = () => {
-        setIsListening(false)
-      }
+    return () => {
+      recognitionRef.current?.stop?.()
+      audioRef.current?.pause()
     }
   }, [])
 
-  const toggleListening = () => {
-    if (!recognitionRef.current) {
-      toast.error("Seu navegador não suporta reconhecimento de voz")
-      return
-    }
+  const getGreeting = () => {
+    const hour = new Date().getHours()
+    if (hour < 12) return "Bom dia"
+    if (hour < 18) return "Boa tarde"
+    return "Boa noite"
+  }
 
-    if (isListening) {
-      recognitionRef.current.stop()
-      setIsListening(false)
-    } else {
-      recognitionRef.current.start()
-      setIsListening(true)
+  const buildSpeechText = (content: string) => {
+    const firstName = String(user?.name || "").trim().split(/\s+/)[0]
+    const cleanContent = content.replace(/^(oi|ola|olá)[,!.\s]+/i, "").trim()
+
+    if (!firstName) return cleanContent
+
+    return `${getGreeting()}, senhor ${firstName}. ${cleanContent}`
+  }
+
+  async function speakMessage(content: string, messageId: string) {
+    try {
+      setSpeakingMessageId(messageId)
+      setIsSpeaking(true)
+      setVoiceStatus("Alfred respondendo")
+      isSpeakingRef.current = true
+      audioRef.current?.pause()
+
+      const res = await fetch("/api/copilot/speak", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: buildSpeechText(content) }),
+      })
+
+      if (!res.ok) {
+        const message =
+          res.status === 503 ? "Configure a chave da ElevenLabs para ativar a voz do Alfred" : "Nao consegui gerar a voz"
+        toast.error(message)
+        return false
+      }
+
+      const blob = await res.blob()
+      const audioUrl = URL.createObjectURL(blob)
+      const audio = new Audio(audioUrl)
+      audioRef.current = audio
+
+      await new Promise<void>((resolve, reject) => {
+        audio.onended = () => {
+          URL.revokeObjectURL(audioUrl)
+          resolve()
+        }
+        audio.onerror = () => {
+          URL.revokeObjectURL(audioUrl)
+          reject(new Error("Audio playback failed"))
+        }
+        audio.play().catch(reject)
+      })
+
+      return true
+    } catch (error) {
+      console.error("Error playing Alfred voice:", error)
+      toast.error("Nao consegui tocar a voz do Alfred")
+      return false
+    } finally {
+      setSpeakingMessageId(null)
+      setIsSpeaking(false)
+      isSpeakingRef.current = false
+      if (isVoiceModeActiveRef.current) {
+        setVoiceStatus("Pronto para ouvir")
+      }
     }
   }
 
-  const handleSendMessage = async (text?: string) => {
+  function getRecognition() {
+    if (recognitionRef.current) return recognitionRef.current
+
+    if (typeof window === "undefined") return null
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRecognition) return null
+
+    const recognition = new SpeechRecognition()
+    recognition.continuous = false
+    recognition.interimResults = true
+    recognition.lang = "pt-BR"
+
+    recognition.onstart = () => {
+      setIsListening(true)
+      setLiveTranscript("")
+      setVoiceStatus("Escutando")
+    }
+
+    recognition.onresult = (event: any) => {
+      let finalTranscript = ""
+      let interimTranscript = ""
+
+      for (let index = event.resultIndex; index < event.results.length; index++) {
+        const transcript = event.results[index][0].transcript
+        if (event.results[index].isFinal) {
+          finalTranscript += transcript
+        } else {
+          interimTranscript += transcript
+        }
+      }
+
+      setLiveTranscript((finalTranscript || interimTranscript).trim())
+
+      if (finalTranscript.trim()) {
+        recognition.stop()
+        void handleSendMessage(finalTranscript.trim(), {
+          source: "voice",
+          autoSpeak: true,
+          resumeListening: true,
+        })
+      }
+    }
+
+    recognition.onerror = () => {
+      setIsListening(false)
+      if (isVoiceModeActiveRef.current) {
+        setVoiceStatus("Nao consegui ouvir")
+      }
+      toast.error("Nao consegui capturar sua voz")
+    }
+
+    recognition.onend = () => {
+      setIsListening(false)
+      if (isVoiceModeActiveRef.current && !isProcessingRef.current && !isSpeakingRef.current) {
+        setVoiceStatus("Pronto para ouvir")
+      }
+    }
+
+    recognitionRef.current = recognition
+    return recognition
+  }
+
+  function startVoiceListening() {
+    if (!isSpeechConfiguredRef.current) {
+      toast.error("A voz do Alfred ainda nao esta configurada")
+      return
+    }
+
+    const recognition = getRecognition()
+    if (!recognition) {
+      toast.error("Seu navegador nao suporta conversa por voz")
+      return
+    }
+
+    if (isProcessingRef.current || isSpeakingRef.current) return
+
+    try {
+      setIsVoiceModeActive(true)
+      isVoiceModeActiveRef.current = true
+      setVoiceStatus("Escutando")
+      recognition.start()
+    } catch {
+      setIsListening(false)
+    }
+  }
+
+  function stopVoiceMode() {
+    setIsVoiceModeActive(false)
+    isVoiceModeActiveRef.current = false
+    setIsListening(false)
+    setIsSpeaking(false)
+    setLiveTranscript("")
+    setVoiceStatus("Conversa pausada")
+    recognitionRef.current?.stop?.()
+    audioRef.current?.pause()
+  }
+
+  function toggleVoiceMode() {
+    if (isVoiceModeActive) {
+      stopVoiceMode()
+    } else {
+      startVoiceListening()
+    }
+  }
+
+  async function handleSendMessage(text?: string, options: SendOptions = {}) {
     const messageText = text || inputValue.trim()
-    if (!messageText || isProcessing) return
+    if (!messageText || isProcessingRef.current) return
 
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
@@ -218,7 +332,12 @@ export function CopilotModule({ user }: CopilotModuleProps) {
 
     setMessages((prev) => [...prev, userMessage])
     setInputValue("")
+    setLiveTranscript(messageText)
     setIsProcessing(true)
+    isProcessingRef.current = true
+    if (options.source === "voice") {
+      setVoiceStatus("Analisando")
+    }
 
     try {
       const res = await fetch("/api/copilot/chat", {
@@ -232,18 +351,23 @@ export function CopilotModule({ user }: CopilotModuleProps) {
       const assistantMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: result.message || "Desculpe, não consegui processar sua mensagem.",
+        content: result.message || "Desculpe, nao consegui processar sua mensagem.",
         timestamp: new Date(),
         action: result.action,
       }
 
       setMessages((prev) => [...prev, assistantMessage])
-      if (isSpeechConfigured) {
-        void speakMessage(assistantMessage.content, assistantMessage.id)
-      }
 
       if (result.action) {
         setTimeout(() => router.refresh(), 1500)
+      }
+
+      if (options.autoSpeak !== false && isSpeechConfiguredRef.current) {
+        await speakMessage(assistantMessage.content, assistantMessage.id)
+      }
+
+      if (options.resumeListening && isVoiceModeActiveRef.current) {
+        window.setTimeout(startVoiceListening, 350)
       }
     } catch {
       const errorMessage: ChatMessage = {
@@ -255,6 +379,10 @@ export function CopilotModule({ user }: CopilotModuleProps) {
       setMessages((prev) => [...prev, errorMessage])
     } finally {
       setIsProcessing(false)
+      isProcessingRef.current = false
+      if (!isVoiceModeActiveRef.current) {
+        setVoiceStatus("Pronto para conversar")
+      }
     }
   }
 
@@ -262,36 +390,37 @@ export function CopilotModule({ user }: CopilotModuleProps) {
     try {
       await fetch("/api/copilot/chat", { method: "DELETE" })
       setMessages([])
-      toast.success("Histórico limpo")
+      toast.success("Historico limpo")
     } catch {
-      toast.error("Erro ao limpar histórico")
+      toast.error("Erro ao limpar historico")
     }
   }
 
   const handleQuickResponse = (text: string) => {
     setInputValue(text)
-    handleSendMessage(text)
+    void handleSendMessage(text)
   }
+
+  const voiceOrbState = isSpeaking ? "speaking" : isListening ? "listening" : isProcessing ? "thinking" : "idle"
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="h-12 w-12 rounded-full bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center shadow-lg">
-            <Sparkles className="h-6 w-6 text-amber-400" />
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-emerald-700 to-slate-950 shadow-lg">
+            <Sparkles className="h-6 w-6 text-amber-300" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
+            <h1 className="flex items-center gap-2 text-2xl font-bold">
               Alfred
-              {isVoiceAllowed && (
-                <span className="text-xs bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded-full flex items-center gap-1">
+              {isPremiumPlan && (
+                <span className="flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-xs text-amber-500">
                   <Crown className="h-3 w-3" />
                   Premium
                 </span>
               )}
             </h1>
-            <p className="text-muted-foreground text-sm">Seu assistente financeiro pessoal</p>
+            <p className="text-sm text-muted-foreground">Seu assistente financeiro pessoal</p>
           </div>
         </div>
         <Button variant="outline" size="sm" onClick={handleClearHistory} disabled={messages.length === 0}>
@@ -299,73 +428,146 @@ export function CopilotModule({ user }: CopilotModuleProps) {
         </Button>
       </div>
 
-      {/* Cards de funcionalidades quando não há mensagens */}
+      <AnimatedCard delay={0.05} className="overflow-hidden border-emerald-500/20 bg-card">
+        <div className="grid gap-6 p-5 md:grid-cols-[170px_1fr] md:items-center">
+          <div className="flex justify-center">
+            <button
+              type="button"
+              onClick={toggleVoiceMode}
+              className="group relative flex h-36 w-36 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              aria-label={isVoiceModeActive ? "Encerrar conversa por voz" : "Iniciar conversa por voz"}
+            >
+              {isVoiceModeActive && (
+                <>
+                  <span className="absolute h-28 w-28 rounded-full border border-emerald-400/30 animate-ping" />
+                  <span className="absolute h-36 w-36 rounded-full border border-amber-300/20 animate-pulse" />
+                </>
+              )}
+              <span
+                className={`absolute h-28 w-28 rounded-full shadow-2xl transition-all ${
+                  voiceOrbState === "listening"
+                    ? "bg-emerald-500/25 shadow-emerald-500/30"
+                    : voiceOrbState === "speaking"
+                      ? "bg-amber-400/25 shadow-amber-400/30"
+                      : voiceOrbState === "thinking"
+                        ? "bg-sky-500/20 shadow-sky-500/20"
+                        : "bg-slate-700/20 shadow-slate-900/30"
+                }`}
+              />
+              <span className="relative flex h-24 w-24 items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-slate-950 via-emerald-950 to-slate-900 text-amber-200 transition-transform group-hover:scale-105">
+                {isProcessing ? (
+                  <Loader2 className="h-9 w-9 animate-spin" />
+                ) : isSpeaking ? (
+                  <Volume2 className="h-9 w-9" />
+                ) : isListening ? (
+                  <Mic className="h-9 w-9" />
+                ) : isVoiceModeActive ? (
+                  <MicOff className="h-9 w-9" />
+                ) : (
+                  <WalletCards className="h-9 w-9" />
+                )}
+              </span>
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-500">
+                {isSpeechConfigured ? "Voz conectada" : "Voz indisponivel"}
+              </span>
+              <span className="rounded-full border border-border bg-muted px-3 py-1 text-xs text-muted-foreground">
+                {voiceStatus}
+              </span>
+            </div>
+
+            <div>
+              <h2 className="text-lg font-semibold">Conversa ao vivo</h2>
+              <p className="mt-1 min-h-5 text-sm text-muted-foreground">
+                {liveTranscript || "Alfred esta pronto para ouvir seus lancamentos e consultas financeiras."}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" onClick={toggleVoiceMode} disabled={!isSpeechConfigured || isProcessing}>
+                {isVoiceModeActive ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                {isVoiceModeActive ? "Encerrar conversa" : "Iniciar conversa"}
+              </Button>
+              {isVoiceModeActive && (
+                <Button type="button" variant="outline" onClick={startVoiceListening} disabled={isListening || isProcessing || isSpeaking}>
+                  <Mic className="h-4 w-4" />
+                  Ouvir agora
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      </AnimatedCard>
+
       {messages.length === 0 && !isLoadingHistory && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           <AnimatedCard delay={0.05} className="p-4">
             <div className="flex items-start gap-3">
-              <div className="h-10 w-10 rounded-lg bg-green-500/10 flex items-center justify-center">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10">
                 <DollarSign className="h-5 w-5 text-green-500" />
               </div>
               <div>
-                <h3 className="font-medium text-sm">Registrar Gastos</h3>
-                <p className="text-xs text-muted-foreground mt-1">"Gastei 50 de mercado"</p>
+                <h3 className="text-sm font-medium">Registrar Gastos</h3>
+                <p className="mt-1 text-xs text-muted-foreground">"Gastei 50 de mercado"</p>
               </div>
             </div>
           </AnimatedCard>
 
           <AnimatedCard delay={0.1} className="p-4">
             <div className="flex items-start gap-3">
-              <div className="h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10">
                 <MessageSquare className="h-5 w-5 text-blue-500" />
               </div>
               <div>
-                <h3 className="font-medium text-sm">Consultar Finanças</h3>
-                <p className="text-xs text-muted-foreground mt-1">"Quanto gastei esse mês?"</p>
+                <h3 className="text-sm font-medium">Consultar Financas</h3>
+                <p className="mt-1 text-xs text-muted-foreground">"Quanto gastei esse mes?"</p>
               </div>
             </div>
           </AnimatedCard>
 
           <AnimatedCard delay={0.15} className="p-4">
             <div className="flex items-start gap-3">
-              <div className="h-10 w-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-500/10">
                 <HelpCircle className="h-5 w-5 text-purple-500" />
               </div>
               <div>
-                <h3 className="font-medium text-sm">Tirar Dúvidas</h3>
-                <p className="text-xs text-muted-foreground mt-1">"Como funciona o app?"</p>
+                <h3 className="text-sm font-medium">Tirar Duvidas</h3>
+                <p className="mt-1 text-xs text-muted-foreground">"Como funciona o app?"</p>
               </div>
             </div>
           </AnimatedCard>
 
           <AnimatedCard delay={0.2} className="p-4">
             <div className="flex items-start gap-3">
-              <div className="h-10 w-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/10">
                 <Lightbulb className="h-5 w-5 text-amber-500" />
               </div>
               <div>
-                <h3 className="font-medium text-sm">Dicas Financeiras</h3>
-                <p className="text-xs text-muted-foreground mt-1">"Me dá dicas pra economizar"</p>
+                <h3 className="text-sm font-medium">Dicas Financeiras</h3>
+                <p className="mt-1 text-xs text-muted-foreground">"Me da dicas pra economizar"</p>
               </div>
             </div>
           </AnimatedCard>
         </div>
       )}
 
-      {/* Chat Container */}
       <AnimatedCard delay={0.25} className="overflow-hidden">
-        <div className="h-[400px] overflow-y-auto p-4 space-y-4 bg-muted/20">
+        <div className="h-[400px] space-y-4 overflow-y-auto bg-muted/20 p-4">
           {isLoadingHistory ? (
-            <div className="flex items-center justify-center h-full">
+            <div className="flex h-full items-center justify-center">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center mb-4 shadow-lg">
-                <Sparkles className="h-10 w-10 text-amber-400" />
+            <div className="flex h-full flex-col items-center justify-center text-center">
+              <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-emerald-800 to-slate-950 shadow-lg">
+                <Sparkles className="h-10 w-10 text-amber-300" />
               </div>
-              <h3 className="font-semibold text-lg mb-2">Olá, sou o Alfred</h3>
-              <p className="text-sm text-muted-foreground max-w-md mb-6">
+              <h3 className="mb-2 text-lg font-semibold">Ola, sou o Alfred</h3>
+              <p className="mb-6 max-w-md text-sm text-muted-foreground">
                 Seu assistente financeiro pessoal. Posso registrar gastos, consultar seu saldo, dar dicas e muito mais.
                 Como posso ajudar?
               </p>
@@ -382,11 +584,11 @@ export function CopilotModule({ user }: CopilotModuleProps) {
                 >
                   <Avatar className="h-8 w-8 shrink-0">
                     {msg.role === "assistant" ? (
-                      <AvatarFallback className="bg-gradient-to-br from-slate-700 to-slate-900 text-amber-400 text-xs font-bold">
+                      <AvatarFallback className="bg-gradient-to-br from-emerald-800 to-slate-950 text-xs font-bold text-amber-300">
                         A
                       </AvatarFallback>
                     ) : (
-                      <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                      <AvatarFallback className="bg-primary text-xs text-primary-foreground">
                         {user?.name?.charAt(0) || "U"}
                       </AvatarFallback>
                     )}
@@ -394,33 +596,35 @@ export function CopilotModule({ user }: CopilotModuleProps) {
                   <div
                     className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
                       msg.role === "user"
-                        ? "bg-primary text-primary-foreground rounded-tr-sm"
-                        : "bg-card border border-border rounded-tl-sm"
+                        ? "rounded-tr-sm bg-primary text-primary-foreground"
+                        : "rounded-tl-sm border border-border bg-card"
                     }`}
                   >
                     <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                    {msg.role === "assistant" && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="mt-2 h-7 px-2 text-xs"
-                        onClick={() => speakMessage(msg.content, msg.id)}
-                        disabled={speakingMessageId === msg.id || !isSpeechConfigured}
-                      >
-                        {speakingMessageId === msg.id ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <Volume2 className="h-3 w-3" />
-                        )}
-                        Ouvir
-                      </Button>
-                    )}
-                    {msg.action && (
-                      <span className="inline-block mt-1 text-xs bg-green-500/20 text-green-600 dark:text-green-400 px-2 py-0.5 rounded">
-                        Ação executada
-                      </span>
-                    )}
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {msg.action && (
+                        <span className="inline-block rounded bg-green-500/20 px-2 py-0.5 text-xs text-green-600 dark:text-green-400">
+                          Acao executada
+                        </span>
+                      )}
+                      {msg.role === "assistant" && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => speakMessage(msg.content, msg.id)}
+                          disabled={speakingMessageId === msg.id || !isSpeechConfigured}
+                        >
+                          {speakingMessageId === msg.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Volume2 className="h-3 w-3" />
+                          )}
+                          Ouvir
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </motion.div>
               ))}
@@ -430,24 +634,15 @@ export function CopilotModule({ user }: CopilotModuleProps) {
           {isProcessing && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-3">
               <Avatar className="h-8 w-8">
-                <AvatarFallback className="bg-gradient-to-br from-slate-700 to-slate-900 text-amber-400 text-xs font-bold">
+                <AvatarFallback className="bg-gradient-to-br from-emerald-800 to-slate-950 text-xs font-bold text-amber-300">
                   A
                 </AvatarFallback>
               </Avatar>
-              <div className="bg-card border border-border rounded-2xl rounded-tl-sm px-4 py-3">
+              <div className="rounded-2xl rounded-tl-sm border border-border bg-card px-4 py-3">
                 <div className="flex gap-1">
-                  <span
-                    className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"
-                    style={{ animationDelay: "0ms" }}
-                  />
-                  <span
-                    className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"
-                    style={{ animationDelay: "150ms" }}
-                  />
-                  <span
-                    className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"
-                    style={{ animationDelay: "300ms" }}
-                  />
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground" style={{ animationDelay: "0ms" }} />
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground" style={{ animationDelay: "150ms" }} />
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground" style={{ animationDelay: "300ms" }} />
                 </div>
               </div>
             </motion.div>
@@ -456,32 +651,30 @@ export function CopilotModule({ user }: CopilotModuleProps) {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Respostas Rápidas */}
-        <div className="p-3 border-t border-border bg-muted/30">
-          <p className="text-xs text-muted-foreground mb-2">Respostas rápidas:</p>
+        <div className="border-t border-border bg-muted/30 p-3">
+          <p className="mb-2 text-xs text-muted-foreground">Respostas rapidas:</p>
           <div className="flex flex-wrap gap-2">
             {QUICK_RESPONSES.map((item, index) => (
               <Button
                 key={index}
                 variant="outline"
                 size="sm"
-                className="text-xs h-7 px-2 bg-transparent"
+                className="h-7 bg-transparent px-2 text-xs"
                 onClick={() => handleQuickResponse(item.text)}
                 disabled={isProcessing}
               >
-                <item.icon className={`h-3 w-3 mr-1 ${item.color}`} />
+                <item.icon className={`mr-1 h-3 w-3 ${item.color}`} />
                 {item.text.length > 25 ? item.text.substring(0, 25) + "..." : item.text}
               </Button>
             ))}
           </div>
         </div>
 
-        {/* Input */}
-        <div className="p-4 border-t border-border bg-card">
+        <div className="border-t border-border bg-card p-4">
           <form
             onSubmit={(e) => {
               e.preventDefault()
-              handleSendMessage()
+              void handleSendMessage()
             }}
             className="flex gap-2"
           >
@@ -493,19 +686,16 @@ export function CopilotModule({ user }: CopilotModuleProps) {
               disabled={isProcessing}
             />
 
-            {/* Botão de microfone - apenas para plano Total */}
-            {isVoiceAllowed && (
-              <Button
-                type="button"
-                variant={isListening ? "default" : "outline"}
-                size="icon"
-                onClick={toggleListening}
-                disabled={isProcessing}
-                className={isListening ? "bg-red-500 hover:bg-red-600 animate-pulse" : ""}
-              >
-                {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-              </Button>
-            )}
+            <Button
+              type="button"
+              variant={isVoiceModeActive ? "default" : "outline"}
+              size="icon"
+              onClick={toggleVoiceMode}
+              disabled={!isSpeechConfigured}
+              className={isVoiceModeActive ? "bg-emerald-600 hover:bg-emerald-700" : ""}
+            >
+              {isVoiceModeActive ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            </Button>
 
             <Button type="submit" size="icon" disabled={isProcessing || !inputValue.trim()}>
               {isProcessing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -514,10 +704,9 @@ export function CopilotModule({ user }: CopilotModuleProps) {
         </div>
       </AnimatedCard>
 
-      {/* Cards de exemplo na parte inferior */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <AnimatedCard delay={0.3} className="p-4">
-          <h3 className="font-medium text-sm mb-3 flex items-center gap-2">
+          <h3 className="mb-3 flex items-center gap-2 text-sm font-medium">
             <DollarSign className="h-4 w-4 text-red-500" />
             Registrar Despesas
           </h3>
@@ -529,25 +718,25 @@ export function CopilotModule({ user }: CopilotModuleProps) {
         </AnimatedCard>
 
         <AnimatedCard delay={0.35} className="p-4">
-          <h3 className="font-medium text-sm mb-3 flex items-center gap-2">
+          <h3 className="mb-3 flex items-center gap-2 text-sm font-medium">
             <TrendingUp className="h-4 w-4 text-green-500" />
             Registrar Receitas
           </h3>
           <div className="space-y-2 text-xs text-muted-foreground">
-            <p>"Recebi 5000 de salário"</p>
+            <p>"Recebi 5000 de salario"</p>
             <p>"Ganhei 200 de freelance"</p>
             <p>"Entrou 150 de dividendos"</p>
           </div>
         </AnimatedCard>
 
         <AnimatedCard delay={0.4} className="p-4">
-          <h3 className="font-medium text-sm mb-3 flex items-center gap-2">
+          <h3 className="mb-3 flex items-center gap-2 text-sm font-medium">
             <HelpCircle className="h-4 w-4 text-blue-500" />
-            Perguntas Úteis
+            Perguntas Uteis
           </h3>
           <div className="space-y-2 text-xs text-muted-foreground">
-            <p>"Qual meu patrimônio líquido?"</p>
-            <p>"Qual meu maior gasto do mês?"</p>
+            <p>"Qual meu patrimonio liquido?"</p>
+            <p>"Qual meu maior gasto do mes?"</p>
             <p>"Quanto tenho em investimentos?"</p>
           </div>
         </AnimatedCard>
