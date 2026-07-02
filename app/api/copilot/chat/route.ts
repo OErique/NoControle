@@ -57,6 +57,8 @@ Você pode executar ações reais no app:
 
 Lembre-se: seja útil, direto e humano. Nada de parecer um robô!`
 
+const ALFRED_MODEL = process.env.ALFRED_MODEL || "openai/gpt-4o-mini"
+
 async function getUserFinancialContext(userId: string) {
   const currentMonth = new Date().toISOString().slice(0, 7)
 
@@ -298,6 +300,71 @@ async function saveMessage(userId: string, role: "user" | "assistant", content: 
   `
 }
 
+function buildActionFallbackResponse(actionResult: any) {
+  if (!actionResult.executed) return null
+
+  switch (actionResult.action) {
+    case "expense_added":
+      return `Pronto, registrei a despesa de ${formatCurrency(actionResult.details.amount)} com ${actionResult.details.description}.`
+    case "income_added":
+      return `Pronto, registrei a receita de ${formatCurrency(actionResult.details.amount)} de ${actionResult.details.description}.`
+    case "bet_added": {
+      const result = actionResult.details.amountWon
+        ? ` e o retorno de ${formatCurrency(actionResult.details.amountWon)}`
+        : ""
+      return `Pronto, registrei a aposta de ${formatCurrency(actionResult.details.amountBet)}${result}.`
+    }
+    default:
+      return "Pronto, registrei isso no seu controle financeiro."
+  }
+}
+
+function buildContextSummary(userContext: string) {
+  return userContext
+    .split("\n")
+    .filter((line) => {
+      const normalized = line.toLowerCase()
+      const plain = normalized.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      return (
+        plain.includes("receitas:") ||
+        plain.includes("despesas:") ||
+        plain.includes("saldo") ||
+        plain.includes("patrim") ||
+        plain.includes("investimentos:") ||
+        plain.includes("dividas:")
+      )
+    })
+    .join("\n")
+}
+
+function buildFallbackResponse(message: string, actionResult: any, userContext: string) {
+  const actionResponse = buildActionFallbackResponse(actionResult)
+  if (actionResponse) return actionResponse
+
+  const lowerMessage = message.toLowerCase()
+  const summary = buildContextSummary(userContext)
+
+  if (/^(oi|ol[aá]|ola|eae|bom dia|boa tarde|boa noite)\b/.test(lowerMessage)) {
+    return "Ola! Sou o Alfred. Posso registrar gastos e receitas, consultar seu resumo financeiro e te dar dicas praticas."
+  }
+
+  if (/(saldo|gastei|gastos|despesas|receitas|patrim[oô]nio|investimentos|d[ií]vidas|dividas)/i.test(message)) {
+    return summary
+      ? `Aqui esta seu resumo financeiro atual:\n\n${summary}`
+      : "Ainda nao encontrei dados financeiros cadastrados. Voce pode comecar dizendo algo como: gastei 50 de mercado."
+  }
+
+  if (/(dica|economizar|poupar|guardar dinheiro)/i.test(message)) {
+    return "Uma dica pratica: separe primeiro um valor fixo para guardar e acompanhe seus maiores gastos da semana. Comece pequeno, mas mantenha constancia."
+  }
+
+  if (/(como funciona|app|nocontrole|plano|planos|ajuda)/i.test(message)) {
+    return "O NoControle ajuda a registrar receitas, despesas, dividas, metas, investimentos e cartoes. Voce tambem pode me pedir para registrar algo por mensagem, como: gastei 50 de mercado."
+  }
+
+  return "Consigo te ajudar com registros e consultas financeiras. Tente algo como: gastei 50 de mercado, recebi 3000 de salario ou qual meu saldo atual?"
+}
+
 export async function POST(req: Request) {
   try {
     const user = await getCurrentUser()
@@ -347,15 +414,24 @@ Usuário: ${message}
 
 Alfred:`
 
-    const { text } = await generateText({
-      model: "anthropic/claude-sonnet-4-20250514",
-      prompt: fullPrompt,
-      maxOutputTokens: 250,
-    })
+    let response: string
+    let aiAvailable = true
 
-    let response = text.trim()
-    if (response.startsWith("Alfred:")) {
-      response = response.replace("Alfred:", "").trim()
+    try {
+      const { text } = await generateText({
+        model: ALFRED_MODEL,
+        prompt: fullPrompt,
+        maxOutputTokens: 250,
+      })
+
+      response = text.trim()
+      if (response.startsWith("Alfred:")) {
+        response = response.replace("Alfred:", "").trim()
+      }
+    } catch (error) {
+      aiAvailable = false
+      console.error("Alfred model generation failed:", error)
+      response = buildFallbackResponse(message, actionResult, userContext)
     }
 
     await saveMessage(user.id, "assistant", response, actionResult.action || undefined)
@@ -365,6 +441,7 @@ Alfred:`
       message: response,
       action: actionResult.executed ? actionResult.action : undefined,
       actionDetails: actionResult.details,
+      aiAvailable,
     })
   } catch (error) {
     console.error("Error in copilot chat:", error)
