@@ -559,7 +559,7 @@ export function CopilotModule({ user }: CopilotModuleProps) {
         </div>
       )}
 
-      <AnimatedCard delay={0.25} className="relative overflow-hidden">
+      <AnimatedCard delay={0.25} hover={false} className="relative overflow-hidden">
         <AnimatePresence>
           {isVoiceModeActive && (
             <motion.div
@@ -567,9 +567,9 @@ export function CopilotModule({ user }: CopilotModuleProps) {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 24, scale: 0.98 }}
               transition={{ duration: 0.24, ease: "easeOut" }}
-              className="absolute inset-x-3 bottom-24 z-20 sm:inset-x-6"
+              className="fixed inset-x-4 bottom-5 z-50 sm:absolute sm:inset-x-6 sm:bottom-24 sm:z-20"
             >
-              <div className="mx-auto max-w-md rounded-[28px] border border-cyan-400/20 bg-background/95 p-5 shadow-[0_24px_80px_rgba(8,145,178,0.22)] backdrop-blur-xl">
+              <div className="mx-auto max-h-[calc(100dvh-2rem)] max-w-md overflow-y-auto rounded-[28px] border border-cyan-400/20 bg-background/95 p-4 shadow-[0_24px_80px_rgba(8,145,178,0.22)] backdrop-blur-xl sm:p-5">
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <span className="rounded-full border border-cyan-500/25 bg-cyan-500/10 px-3 py-1 text-xs font-medium text-cyan-500">
                     {isSpeechConfigured ? "Voz conectada" : "Voz indisponivel"}
@@ -591,7 +591,7 @@ export function CopilotModule({ user }: CopilotModuleProps) {
                   type="button"
                   onClick={startVoiceListening}
                   disabled={!isSpeechConfigured || isListening || isProcessing || isSpeaking}
-                  className="group relative mx-auto flex h-44 w-44 items-center justify-center rounded-full disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                  className="group relative mx-auto flex h-40 w-40 items-center justify-center rounded-full disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:h-44 sm:w-44"
                   aria-label="Ouvir agora"
                 >
                   <motion.span
