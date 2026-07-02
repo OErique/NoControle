@@ -16,6 +16,7 @@ import {
   Lightbulb,
   TrendingUp,
   PiggyBank,
+  Volume2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -53,16 +54,91 @@ export function CopilotModule({ user }: CopilotModuleProps) {
   const [inputValue, setInputValue] = useState("")
   const [isProcessing, setIsProcessing] = useState(false)
   const [isListening, setIsListening] = useState(false)
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null)
+  const [isSpeechConfigured, setIsSpeechConfigured] = useState(false)
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const recognitionRef = useRef<any>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
 
   const isVoiceAllowed = user?.plan_slug === "total"
+
+  const getGreeting = () => {
+    const hour = new Date().getHours()
+    if (hour < 12) return "Bom dia"
+    if (hour < 18) return "Boa tarde"
+    return "Boa noite"
+  }
+
+  const buildSpeechText = (content: string) => {
+    const firstName = String(user?.name || "").trim().split(/\s+/)[0]
+    const cleanContent = content.replace(/^(oi|ola|olá)[,!.\s]+/i, "").trim()
+
+    if (!firstName) return cleanContent
+
+    return `${getGreeting()}, senhor ${firstName}. ${cleanContent}`
+  }
+
+  const speakMessage = async (content: string, messageId: string) => {
+    try {
+      setSpeakingMessageId(messageId)
+      audioRef.current?.pause()
+
+      const res = await fetch("/api/copilot/speak", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: buildSpeechText(content) }),
+      })
+
+      if (!res.ok) {
+        const message =
+          res.status === 503 ? "Configure a chave da ElevenLabs para ativar a voz do Alfred" : "Nao consegui gerar a voz"
+        toast.error(message)
+        return
+      }
+
+      const blob = await res.blob()
+      const audioUrl = URL.createObjectURL(blob)
+      const audio = new Audio(audioUrl)
+
+      audioRef.current = audio
+      audio.onended = () => {
+        URL.revokeObjectURL(audioUrl)
+        setSpeakingMessageId(null)
+      }
+      audio.onerror = () => {
+        URL.revokeObjectURL(audioUrl)
+        setSpeakingMessageId(null)
+        toast.error("Nao consegui tocar o audio")
+      }
+
+      await audio.play()
+    } catch (error) {
+      console.error("Error playing Alfred voice:", error)
+      toast.error("Nao consegui tocar a voz do Alfred")
+    } finally {
+      setSpeakingMessageId(null)
+    }
+  }
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
+
+  useEffect(() => {
+    const loadSpeechStatus = async () => {
+      try {
+        const res = await fetch("/api/copilot/speak")
+        const data = await res.json()
+        setIsSpeechConfigured(Boolean(data.configured))
+      } catch {
+        setIsSpeechConfigured(false)
+      }
+    }
+
+    loadSpeechStatus()
+  }, [])
 
   useEffect(() => {
     const loadHistory = async () => {
@@ -162,11 +238,14 @@ export function CopilotModule({ user }: CopilotModuleProps) {
       }
 
       setMessages((prev) => [...prev, assistantMessage])
+      if (isSpeechConfigured) {
+        void speakMessage(assistantMessage.content, assistantMessage.id)
+      }
 
       if (result.action) {
         setTimeout(() => router.refresh(), 1500)
       }
-    } catch (error) {
+    } catch {
       const errorMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: "assistant",
@@ -320,6 +399,23 @@ export function CopilotModule({ user }: CopilotModuleProps) {
                     }`}
                   >
                     <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                    {msg.role === "assistant" && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="mt-2 h-7 px-2 text-xs"
+                        onClick={() => speakMessage(msg.content, msg.id)}
+                        disabled={speakingMessageId === msg.id || !isSpeechConfigured}
+                      >
+                        {speakingMessageId === msg.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Volume2 className="h-3 w-3" />
+                        )}
+                        Ouvir
+                      </Button>
+                    )}
                     {msg.action && (
                       <span className="inline-block mt-1 text-xs bg-green-500/20 text-green-600 dark:text-green-400 px-2 py-0.5 rounded">
                         Ação executada
