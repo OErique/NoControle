@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: nocontrole
+    runtime: node
+    plan: free
+    autoDeploy: true
+    buildCommand: corepack enable && corepack pnpm install --frozen-lockfile && corepack pnpm build
+    startCommand: corepack pnpm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
