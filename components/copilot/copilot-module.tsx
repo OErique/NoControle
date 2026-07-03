@@ -20,7 +20,7 @@ import {
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { AnimatedCard } from "@/components/ui/animated-card"
@@ -838,9 +838,12 @@ export function CopilotModule({ user }: CopilotModuleProps) {
                 >
                   <Avatar className="h-8 w-8 shrink-0">
                     {msg.role === "assistant" ? (
-                      <AvatarFallback className="bg-gradient-to-br from-emerald-800 to-slate-950 text-xs font-bold text-amber-300">
-                        A
-                      </AvatarFallback>
+                      <>
+                        <AvatarImage src="/alfred.webp" alt="Alfred" className="object-cover object-[50%_18%]" />
+                        <AvatarFallback className="bg-gradient-to-br from-emerald-800 to-slate-950 text-xs font-bold text-amber-300">
+                          A
+                        </AvatarFallback>
+                      </>
                     ) : (
                       <AvatarFallback className="bg-primary text-xs text-primary-foreground">
                         {user?.name?.charAt(0) || "U"}
@@ -888,6 +891,7 @@ export function CopilotModule({ user }: CopilotModuleProps) {
           {isProcessing && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-3">
               <Avatar className="h-8 w-8">
+                <AvatarImage src="/alfred.webp" alt="Alfred" className="object-cover object-[50%_18%]" />
                 <AvatarFallback className="bg-gradient-to-br from-emerald-800 to-slate-950 text-xs font-bold text-amber-300">
                   A
                 </AvatarFallback>
