@@ -21,6 +21,7 @@ import {
   Lock,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { LogoMark } from "@/components/brand/logo-mark"
 import { ScrollReveal, HeroMockup, GlowCard, FloatingOrbs } from "@/components/landing/scroll-animations"
 
 export default function LandingPage() {
@@ -41,9 +42,7 @@ export default function LandingPage() {
       <header className="fixed top-0 z-50 w-full border-b border-border/30 bg-background/60 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
           <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl gradient-primary shadow-lg shadow-primary/20">
-              <TrendingUp className="h-5 w-5 text-primary-foreground" />
-            </div>
+            <LogoMark size="md" />
             <span className="text-xl font-bold text-foreground">NoControle</span>
           </div>
           <nav className="hidden items-center gap-8 md:flex">
@@ -550,9 +549,7 @@ export default function LandingPage() {
           <div className="grid gap-8 md:grid-cols-4">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg gradient-primary">
-                  <TrendingUp className="h-5 w-5 text-primary-foreground" />
-                </div>
+                <LogoMark size="sm" />
                 <span className="text-lg font-bold text-foreground">NoControle</span>
               </div>
               <p className="text-sm text-muted-foreground">

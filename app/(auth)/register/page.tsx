@@ -5,12 +5,13 @@ import type React from "react"
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Eye, EyeOff, Loader2, TrendingUp, Check, FileText } from "lucide-react"
+import { Eye, EyeOff, Loader2, Check, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { LogoMark } from "@/components/brand/logo-mark"
 import { toast } from "sonner"
 
 export default function RegisterPage() {
@@ -74,9 +75,7 @@ export default function RegisterPage() {
     <div className="space-y-8">
       {/* Mobile logo */}
       <div className="flex items-center justify-center gap-2 lg:hidden">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl gradient-primary">
-          <TrendingUp className="h-6 w-6 text-primary-foreground" />
-        </div>
+        <LogoMark size="lg" />
         <span className="text-2xl font-bold text-foreground">NoControle</span>
       </div>
 

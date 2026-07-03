@@ -1,6 +1,6 @@
 import type React from "react"
 import Link from "next/link"
-import { TrendingUp } from "lucide-react"
+import { LogoMark } from "@/components/brand/logo-mark"
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -8,9 +8,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       {/* Left side - Branding */}
       <div className="hidden lg:flex lg:w-1/2 lg:flex-col lg:justify-between bg-gradient-to-br from-primary/20 via-background to-accent/20 p-12">
         <Link href="/" className="flex items-center gap-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl gradient-primary">
-            <TrendingUp className="h-6 w-6 text-primary-foreground" />
-          </div>
+          <LogoMark size="lg" />
           <span className="text-2xl font-bold text-foreground">NoControle</span>
         </Link>
 

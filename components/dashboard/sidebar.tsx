@@ -26,6 +26,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { LogoMark } from "@/components/brand/logo-mark"
 import { useEffect, useMemo, useState } from "react"
 
 interface SidebarProps {
@@ -260,9 +261,7 @@ export function DashboardSidebar({ user }: SidebarProps) {
         <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4">
           {!isCollapsed && (
             <Link href="/dashboard" className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg gradient-primary">
-                <TrendingUp className="h-5 w-5 text-primary-foreground" />
-              </div>
+              <LogoMark size="sm" />
               <span className="text-lg font-bold text-sidebar-foreground">NoControle</span>
             </Link>
           )}
