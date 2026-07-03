@@ -9,12 +9,12 @@ import {
   PiggyBank,
   BarChart3,
   Check,
-  Sparkles,
+  LayoutGrid,
   Target,
   Users,
   Zap,
   ChevronDown,
-  Star,
+  Medal,
   CreditCard,
   Smartphone,
   Globe,
@@ -202,7 +202,7 @@ export default function LandingPage() {
           <ScrollReveal>
             <div className="mb-16 text-center">
               <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-sm text-primary">
-                <Sparkles className="h-4 w-4" />
+                <LayoutGrid className="h-4 w-4" />
                 Funcionalidades
               </div>
               <h2 className="mb-4 text-3xl font-bold text-foreground md:text-5xl">
@@ -291,7 +291,7 @@ export default function LandingPage() {
                 color: "orange-500",
               },
               {
-                icon: Star,
+                icon: Medal,
                 title: "Sistema de Níveis",
                 description: "Bronze, Prata, Ouro e Diamante com benefícios",
                 color: "yellow-500",
@@ -422,8 +422,8 @@ export default function LandingPage() {
                   {[
                     "Todos os módulos",
                     "Dashboard premium",
-                    "Relatórios PDF com IA",
-                    "Copiloto financeiro IA",
+                    "Relatórios PDF personalizados",
+                    "Alfred assistente por voz",
                     "Simulações ilimitadas",
                     "Suporte VIP",
                   ].map((item, i) => (

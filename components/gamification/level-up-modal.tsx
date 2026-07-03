@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Sparkles, Gift, ArrowRight } from "lucide-react"
+import { Trophy, Gift, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { LevelBadge } from "./level-badge"
 import { Confetti } from "@/components/ui/confetti"
@@ -66,9 +66,9 @@ export function LevelUpModal({ isOpen, onClose, newLevel, totalPoints }: LevelUp
                 {/* Title */}
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
                   <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground mb-2">
-                    <Sparkles className="h-4 w-4" />
+                    <Trophy className="h-4 w-4" />
                     <span>Parabéns!</span>
-                    <Sparkles className="h-4 w-4" />
+                    <Trophy className="h-4 w-4" />
                   </div>
                   <h2 className="text-2xl font-bold">Você subiu para</h2>
                   <p

@@ -288,13 +288,10 @@ export function GlowCard({ children, className = "", glowColor = "primary" }: Gl
 
 export function FloatingOrbs() {
   return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {/* Primary orb */}
-      <div className="absolute w-[600px] h-[600px] rounded-full opacity-30 blur-3xl top-[10%] left-[10%] bg-primary/50 animate-float-slow" />
-      {/* Accent orb */}
-      <div className="absolute w-[500px] h-[500px] rounded-full opacity-20 blur-3xl bottom-[20%] right-[10%] bg-accent/50 animate-float-reverse" />
-      {/* Small accent orb */}
-      <div className="absolute w-[300px] h-[300px] rounded-full opacity-20 blur-2xl top-[50%] right-[30%] bg-primary/40 animate-float-fast" />
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,hsl(var(--border))_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border))_1px,transparent_1px)] bg-[size:72px_72px] opacity-[0.035]" />
+      <div className="absolute inset-x-0 top-0 h-72 bg-gradient-to-b from-primary/10 to-transparent" />
+      <div className="absolute inset-x-0 bottom-0 h-56 bg-gradient-to-t from-background to-transparent" />
     </div>
   )
 }

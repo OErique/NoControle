@@ -12,7 +12,7 @@ import {
   Calendar,
   ArrowUpRight,
   ArrowDownRight,
-  Sparkles,
+  Award,
 } from "lucide-react"
 import { StatCard } from "@/components/ui/stat-card"
 import { StatusBadge } from "@/components/ui/status-badge"
@@ -200,7 +200,7 @@ export function DashboardOverview({ user, data }: DashboardOverviewProps) {
         <div className="flex items-center gap-3">
           {user.total_points !== undefined && user.total_points > 0 && (
             <div className="flex items-center gap-1.5 rounded-full bg-yellow-500/20 px-3 py-1.5">
-              <Sparkles className="h-4 w-4 text-yellow-500" />
+              <Award className="h-4 w-4 text-yellow-500" />
               <span className="text-sm font-medium text-yellow-500">{user.total_points} pts</span>
             </div>
           )}

@@ -10,12 +10,12 @@ import {
   Settings,
   Lock,
   Crown,
+  ShieldCheck,
   ChevronLeft,
   Menu,
   Upload,
   Target,
   Bot,
-  Sparkles,
   User,
   Users,
   MessageSquare,
@@ -287,14 +287,14 @@ export function DashboardSidebar({ user }: SidebarProps) {
                 className={cn(
                   "flex items-center gap-2 rounded-lg px-3 py-2 transition-colors hover:opacity-80",
                   planSlug === "total"
-                    ? "bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-400"
+                    ? "bg-gradient-to-r from-emerald-500/15 to-amber-500/15 text-emerald-300"
                     : planSlug === "completo"
                       ? "bg-warning/20 text-warning"
                       : "bg-sidebar-accent text-sidebar-accent-foreground",
                 )}
               >
                 {planSlug === "total" ? (
-                  <Sparkles className="h-4 w-4" />
+                  <ShieldCheck className="h-4 w-4" />
                 ) : planSlug === "completo" ? (
                   <Crown className="h-4 w-4" />
                 ) : null}

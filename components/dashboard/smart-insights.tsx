@@ -8,9 +8,9 @@ import {
   AlertTriangle,
   Lightbulb,
   ArrowRight,
-  Sparkles,
   PiggyBank,
   Target,
+  LineChart,
 } from "lucide-react"
 import { AnimatedCard } from "@/components/ui/animated-card"
 import { Button } from "@/components/ui/button"
@@ -114,7 +114,7 @@ export function SmartInsights({ data }: SmartInsightsProps) {
   if (data.totalInvestments === 0 && data.balance > 0) {
     insights.push({
       type: "tip",
-      icon: Sparkles,
+      icon: LineChart,
       title: "Hora de Investir",
       message: "Você tem saldo positivo mas ainda não investe. Que tal começar?",
       action: { label: "Começar", href: "/investments" },
@@ -144,7 +144,7 @@ export function SmartInsights({ data }: SmartInsightsProps) {
     <AnimatedCard className="col-span-full">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-semibold flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-primary" />
+          <Lightbulb className="h-5 w-5 text-primary" />
           Insights Inteligentes
         </h3>
       </div>

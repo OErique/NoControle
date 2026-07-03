@@ -17,7 +17,8 @@ import {
   Lock,
   Camera,
   CheckCircle,
-  Sparkles,
+  Award,
+  Palette,
   Package,
   ShoppingBag,
 } from "lucide-react"
@@ -320,7 +321,7 @@ export function ProfileModule({ userId, isOwnProfile }: ProfileModuleProps) {
             {/* Stats Row */}
             <div className="flex flex-wrap gap-3 sm:gap-6 pt-2">
               <div className="flex items-center gap-1.5 sm:gap-2 text-sm">
-                <Sparkles className="h-4 w-4 text-yellow-500" />
+                <Award className="h-4 w-4 text-yellow-500" />
                 <span className="font-medium">{profile.total_points.toLocaleString()} pts</span>
               </div>
               <div className="flex items-center gap-1.5 sm:gap-2 text-sm text-muted-foreground">
@@ -360,7 +361,7 @@ export function ProfileModule({ userId, isOwnProfile }: ProfileModuleProps) {
           )}
           {isOwnProfile && (
             <TabsTrigger value="personalizar" className="flex items-center gap-1">
-              <Sparkles className="h-3.5 w-3.5" />
+              <Palette className="h-3.5 w-3.5" />
               Personalizar
             </TabsTrigger>
           )}
@@ -573,7 +574,7 @@ function ShopTab({ userId, onPurchase }: { userId: string; onPurchase?: () => vo
       if (res.ok) {
         const data = await res.json()
         toast.success("Item adquirido com sucesso!", {
-          icon: <Sparkles className="h-4 w-4 text-yellow-500" />,
+          icon: <CheckCircle className="h-4 w-4 text-green-500" />,
         })
         setUserPoints(data.newBalance)
         await fetchShop()
@@ -627,7 +628,7 @@ function ShopTab({ userId, onPurchase }: { userId: string; onPurchase?: () => vo
         <div className="p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-full bg-yellow-500/20 flex items-center justify-center">
-              <Sparkles className="h-5 w-5 text-yellow-500" />
+              <Award className="h-5 w-5 text-yellow-500" />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Seus pontos</p>

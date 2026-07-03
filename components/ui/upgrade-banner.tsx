@@ -1,7 +1,7 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { Sparkles, ArrowRight, X } from "lucide-react"
+import { ShieldCheck, ArrowRight, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useState } from "react"
@@ -17,8 +17,8 @@ export function UpgradeBanner({ feature, planRequired }: UpgradeBannerProps) {
   if (isDismissed) return null
 
   const planName = planRequired === "total" ? "Total" : "Completo"
-  const gradient = planRequired === "total" ? "from-purple-500/20 to-pink-500/20" : "from-primary/20 to-accent/20"
-  const borderColor = planRequired === "total" ? "border-purple-500/30" : "border-primary/30"
+  const gradient = planRequired === "total" ? "from-emerald-500/15 to-amber-500/15" : "from-primary/20 to-accent/20"
+  const borderColor = planRequired === "total" ? "border-emerald-500/25" : "border-primary/30"
 
   return (
     <motion.div
@@ -37,7 +37,7 @@ export function UpgradeBanner({ feature, planRequired }: UpgradeBannerProps) {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-background/50">
-            <Sparkles className="h-5 w-5 text-primary" />
+            <ShieldCheck className="h-5 w-5 text-primary" />
           </div>
           <div>
             <p className="font-medium text-foreground">Desbloqueie {feature}</p>

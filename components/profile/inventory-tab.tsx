@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Package, Sparkles, Crown, Palette, Award, Zap, Check, Eye } from "lucide-react"
+import { Package, Crown, Palette, Award, Zap, Check, Eye } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AnimatedCard } from "@/components/ui/animated-card"
 import { toast } from "sonner"
@@ -107,7 +107,7 @@ export function InventoryTab({ onItemActivated }: InventoryTabProps) {
       if (res.ok) {
         const result = await res.json()
         toast.success(result.message, {
-          icon: activate ? <Sparkles className="h-4 w-4 text-yellow-500" /> : undefined,
+          icon: activate ? <Check className="h-4 w-4 text-green-500" /> : undefined,
         })
         await fetchInventory()
         onItemActivated?.()
@@ -304,7 +304,7 @@ function InventoryItemCard({
               "Desativar"
             ) : (
               <>
-                <Sparkles className="h-3 w-3 mr-1" />
+                <Check className="h-3 w-3 mr-1" />
                 Ativar
               </>
             )}
@@ -462,7 +462,7 @@ function PreviewModal({
                 "Desativar"
               ) : (
                 <>
-                  <Sparkles className="h-4 w-4 mr-2" />
+                  <Check className="h-4 w-4 mr-2" />
                   Ativar
                 </>
               )}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { Check, Crown, Zap, Shield, ArrowRight, Sparkles, X } from "lucide-react"
+import { Check, Crown, Zap, Shield, ArrowRight, ShieldCheck, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AnimatedCard } from "@/components/ui/animated-card"
 import { cn } from "@/lib/utils"
@@ -29,7 +29,7 @@ const planFeatures = {
       { text: "30 transações/mês", included: true },
       { text: "Score Financeiro", included: false },
       { text: "Importação de extratos", included: false },
-      { text: "Copiloto IA", included: false },
+      { text: "Alfred por voz", included: false },
       { text: "Projeções avançadas", included: false },
     ],
   },
@@ -45,15 +45,15 @@ const planFeatures = {
       { text: "Transações ilimitadas", included: true },
       { text: "Score Financeiro", included: true },
       { text: "Importação de extratos", included: true },
-      { text: "Copiloto IA", included: false },
+      { text: "Alfred por voz", included: false },
       { text: "Projeções avançadas", included: true },
     ],
   },
   total: {
     icon: Crown,
-    color: "border-purple-500",
-    gradient: "from-purple-500/20 to-pink-500/20",
-    iconBg: "bg-purple-500/20 text-purple-500",
+    color: "border-emerald-500",
+    gradient: "from-emerald-500/15 to-amber-500/15",
+    iconBg: "bg-emerald-500/15 text-emerald-400",
     highlights: [
       { text: "Todos os 3 módulos", included: true },
       { text: "Dashboard premium", included: true },
@@ -61,7 +61,7 @@ const planFeatures = {
       { text: "Transações ilimitadas", included: true },
       { text: "Score Financeiro", included: true },
       { text: "Importação de extratos", included: true },
-      { text: "Copiloto IA", included: true },
+      { text: "Alfred por voz", included: true },
       { text: "Projeções avançadas", included: true },
     ],
   },
@@ -117,7 +117,7 @@ const comparisons = [
     total: "Ilimitado",
   },
   {
-    feature: "Copiloto IA",
+    feature: "Alfred por voz",
     essencial: false,
     completo: false,
     total: true,
@@ -216,7 +216,7 @@ export default function UpgradePage() {
           animate={{ opacity: 1, scale: 1 }}
           className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20"
         >
-          <Sparkles className="h-8 w-8 text-primary" />
+          <ShieldCheck className="h-8 w-8 text-primary" />
         </motion.div>
         <motion.h1
           className="text-3xl font-bold md:text-4xl"
@@ -286,7 +286,7 @@ export default function UpgradePage() {
                   config.color,
                   config.gradient,
                   isPopular && "shadow-xl shadow-primary/20 scale-105 z-10",
-                  isPremium && "shadow-xl shadow-purple-500/20",
+                  isPremium && "shadow-xl shadow-emerald-950/40",
                 )}
               >
                 {isPopular && (
@@ -295,7 +295,7 @@ export default function UpgradePage() {
                   </div>
                 )}
                 {isPremium && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 px-4 py-1 text-sm font-medium text-white">
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-emerald-700 to-amber-700 px-4 py-1 text-sm font-medium text-white">
                     Completo + IA
                   </div>
                 )}
@@ -338,7 +338,7 @@ export default function UpgradePage() {
                 <Button
                   className={cn(
                     "w-full gap-2",
-                    isPremium && "bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600",
+                    isPremium && "bg-gradient-to-r from-emerald-700 to-amber-700 hover:from-emerald-600 hover:to-amber-600",
                     isPopular && !isPremium && "gradient-primary",
                   )}
                   size="lg"
@@ -379,7 +379,7 @@ export default function UpgradePage() {
                   <th className="pb-4 text-left font-medium text-muted-foreground">Funcionalidade</th>
                   <th className="pb-4 text-center font-medium">Essencial</th>
                   <th className="pb-4 text-center font-medium text-primary">Completo</th>
-                  <th className="pb-4 text-center font-medium text-purple-500">Total</th>
+                  <th className="pb-4 text-center font-medium text-emerald-400">Total</th>
                 </tr>
               </thead>
               <tbody>

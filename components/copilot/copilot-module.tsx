@@ -13,11 +13,11 @@ import {
   MicOff,
   PiggyBank,
   Send,
-  Sparkles,
   Trash2,
   TrendingUp,
   Volume2,
 } from "lucide-react"
+import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -43,6 +43,7 @@ type SendOptions = {
   autoSpeak?: boolean
   resumeListening?: boolean
   source?: "text" | "voice"
+  voiceSessionId?: number
 }
 
 type SpeakOptions = {
@@ -78,6 +79,7 @@ export function CopilotModule({ user }: CopilotModuleProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const recognitionRef = useRef<any>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const audioContextRef = useRef<AudioContext | null>(null)
   const audioObjectUrlRef = useRef<string | null>(null)
   const audioPlaybackResolverRef = useRef<(() => void) | null>(null)
   const audioUnlockedRef = useRef(false)
@@ -155,6 +157,10 @@ export function CopilotModule({ user }: CopilotModuleProps) {
       audioPlaybackResolverRef.current = null
       activeSpeechAbortRef.current?.abort()
       audioRef.current?.pause()
+      if (audioRef.current?.dataset.alfredDynamic === "true") {
+        audioRef.current.remove()
+      }
+      audioContextRef.current?.close?.()
       if (audioObjectUrlRef.current) {
         URL.revokeObjectURL(audioObjectUrlRef.current)
         audioObjectUrlRef.current = null
@@ -183,11 +189,17 @@ export function CopilotModule({ user }: CopilotModuleProps) {
 
   function getAudioElement() {
     if (!audioRef.current) {
-      const audio = new Audio()
-      audio.preload = "auto"
-      audio.setAttribute("playsinline", "true")
+      const audio = document.createElement("audio")
+      audio.dataset.alfredDynamic = "true"
+      audio.style.display = "none"
+      document.body.appendChild(audio)
       audioRef.current = audio
     }
+
+    audioRef.current.preload = "auto"
+    audioRef.current.controls = false
+    audioRef.current.setAttribute("playsinline", "true")
+    audioRef.current.setAttribute("webkit-playsinline", "true")
 
     return audioRef.current
   }
@@ -216,6 +228,8 @@ export function CopilotModule({ user }: CopilotModuleProps) {
       audio.muted = true
       audio.src = SILENT_AUDIO
       audio.setAttribute("playsinline", "true")
+      audio.setAttribute("webkit-playsinline", "true")
+      audio.load()
       await audio.play()
       audio.pause()
       audio.currentTime = 0
@@ -223,6 +237,21 @@ export function CopilotModule({ user }: CopilotModuleProps) {
       audioUnlockedRef.current = true
     } catch {
       audio.muted = false
+    }
+
+    try {
+      const AudioContextCtor =
+        window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+
+      if (AudioContextCtor) {
+        const context = audioContextRef.current ?? new AudioContextCtor()
+        audioContextRef.current = context
+        if (context.state === "suspended") {
+          await context.resume()
+        }
+      }
+    } catch {
+      // Mobile browsers can deny AudioContext without blocking the chat flow.
     }
   }
 
@@ -275,6 +304,8 @@ export function CopilotModule({ user }: CopilotModuleProps) {
       audio.src = audioUrl
       audio.muted = false
       audio.setAttribute("playsinline", "true")
+      audio.setAttribute("webkit-playsinline", "true")
+      audio.load()
 
       await new Promise<void>((resolve, reject) => {
         const finish = () => {
@@ -312,7 +343,16 @@ export function CopilotModule({ user }: CopilotModuleProps) {
           return
         }
 
-        audio.play().catch(fail)
+        const playAudio = async () => {
+          try {
+            await audio.play()
+          } catch {
+            await new Promise((resolve) => window.setTimeout(resolve, 80))
+            await audio.play()
+          }
+        }
+
+        playAudio().catch(fail)
       })
 
       return true
@@ -374,13 +414,19 @@ export function CopilotModule({ user }: CopilotModuleProps) {
       setLiveTranscript((finalTranscript || interimTranscript).trim())
 
       if (finalTranscript.trim()) {
+        const voiceSessionId = voiceSessionIdRef.current
         recognition.stop()
         void handleSendMessage(finalTranscript.trim(), {
           source: "voice",
           autoSpeak: true,
           resumeListening: true,
+          voiceSessionId,
         })
       }
+    }
+
+    recognition.onspeechend = () => {
+      recognition.stop()
     }
 
     recognition.onerror = () => {
@@ -467,7 +513,10 @@ export function CopilotModule({ user }: CopilotModuleProps) {
     setLiveTranscript(messageText)
     setIsProcessing(true)
     isProcessingRef.current = true
-    if (options.source === "voice") {
+    const isCurrentVoiceTurn = () =>
+      typeof options.voiceSessionId !== "number" || options.voiceSessionId === voiceSessionIdRef.current
+
+    if (options.source === "voice" && isCurrentVoiceTurn()) {
       setVoiceStatus("Analisando")
     }
 
@@ -497,10 +546,11 @@ export function CopilotModule({ user }: CopilotModuleProps) {
       const shouldSpeak =
         options.autoSpeak !== false &&
         isSpeechConfiguredRef.current &&
-        (options.source === "voice" || isVoiceModeActiveRef.current)
+        isVoiceModeActiveRef.current &&
+        isCurrentVoiceTurn()
 
       if (shouldSpeak) {
-        const voiceSessionId = voiceSessionIdRef.current
+        const voiceSessionId = options.voiceSessionId ?? voiceSessionIdRef.current
         setIsProcessing(false)
         isProcessingRef.current = false
         void speakMessage(assistantMessage.content, assistantMessage.id, { voiceSessionId }).then((didSpeak) => {
@@ -545,10 +595,18 @@ export function CopilotModule({ user }: CopilotModuleProps) {
 
   return (
     <div className="space-y-6">
+      <audio ref={audioRef} preload="auto" className="hidden" aria-hidden="true" />
+
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-emerald-700 to-slate-950 shadow-lg">
-            <Sparkles className="h-6 w-6 text-amber-300" />
+          <div className="h-12 w-12 overflow-hidden rounded-full border border-amber-400/20 bg-slate-950 shadow-lg">
+            <Image
+              src="/alfred.webp"
+              alt="Alfred"
+              width={96}
+              height={96}
+              className="h-full w-full object-cover object-[50%_18%]"
+            />
           </div>
           <div>
             <h1 className="flex items-center gap-2 text-2xl font-bold">
@@ -630,9 +688,9 @@ export function CopilotModule({ user }: CopilotModuleProps) {
               transition={{ duration: 0.24, ease: "easeOut" }}
               className="fixed inset-x-4 bottom-5 z-50 sm:absolute sm:inset-x-6 sm:bottom-24 sm:z-20"
             >
-              <div className="mx-auto max-h-[calc(100dvh-2rem)] max-w-md overflow-y-auto rounded-[28px] border border-cyan-400/20 bg-background/95 p-4 shadow-[0_24px_80px_rgba(8,145,178,0.22)] backdrop-blur-xl sm:p-5">
+              <div className="mx-auto max-h-[calc(100dvh-2rem)] max-w-md overflow-y-auto rounded-[28px] border border-emerald-500/20 bg-background/95 p-4 shadow-[0_24px_80px_rgba(6,78,59,0.32)] backdrop-blur-xl sm:p-5">
                 <div className="mb-3 flex items-center justify-between gap-3">
-                  <span className="rounded-full border border-cyan-500/25 bg-cyan-500/10 px-3 py-1 text-xs font-medium text-cyan-500">
+                  <span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-400">
                     {isSpeechConfigured ? "Voz conectada" : "Voz indisponivel"}
                   </span>
                   <Button
@@ -652,11 +710,11 @@ export function CopilotModule({ user }: CopilotModuleProps) {
                   type="button"
                   onClick={startVoiceListening}
                   disabled={!isSpeechConfigured || isListening || isProcessing || isSpeaking}
-                  className="group relative mx-auto flex h-40 w-40 items-center justify-center rounded-full disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:h-44 sm:w-44"
+                  className="group relative mx-auto flex h-40 w-40 items-center justify-center rounded-full disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:h-44 sm:w-44"
                   aria-label="Ouvir agora"
                 >
                   <motion.span
-                    className="absolute h-32 w-32 rounded-full bg-cyan-400/10 blur-2xl"
+                    className="absolute h-32 w-32 rounded-full bg-emerald-500/10 blur-2xl"
                     animate={{
                       scale: isListening || isSpeaking || isProcessing ? [0.9, 1.15, 0.95] : 0.95,
                       opacity: isListening || isSpeaking || isProcessing ? [0.35, 0.7, 0.4] : 0.25,
@@ -666,9 +724,9 @@ export function CopilotModule({ user }: CopilotModuleProps) {
                   <svg className="absolute inset-0 h-full w-full" viewBox="0 0 220 220" aria-hidden="true">
                     <defs>
                       <linearGradient id="alfredVoiceRing" x1="30" y1="24" x2="190" y2="196">
-                        <stop offset="0%" stopColor="#22d3ee" />
-                        <stop offset="48%" stopColor="#10b981" />
-                        <stop offset="100%" stopColor="#facc15" />
+                        <stop offset="0%" stopColor="#14532d" />
+                        <stop offset="48%" stopColor="#059669" />
+                        <stop offset="100%" stopColor="#b45309" />
                       </linearGradient>
                       <filter id="alfredVoiceGlow">
                         <feGaussianBlur stdDeviation="3.5" result="blur" />
@@ -709,7 +767,7 @@ export function CopilotModule({ user }: CopilotModuleProps) {
                       cy="110"
                       r="58"
                       fill="rgba(2, 6, 23, 0.88)"
-                      stroke="rgba(34, 211, 238, 0.35)"
+                      stroke="rgba(16, 185, 129, 0.28)"
                       strokeWidth="1.5"
                       animate={{
                         r: isSpeaking ? [56, 62, 58] : isListening ? [58, 64, 58] : 58,
@@ -717,7 +775,7 @@ export function CopilotModule({ user }: CopilotModuleProps) {
                       transition={{ duration: 1.1, repeat: Infinity, ease: "easeInOut" }}
                     />
                   </svg>
-                  <span className="relative flex h-20 w-20 items-center justify-center rounded-full border border-cyan-300/25 bg-slate-950 text-cyan-100 shadow-[0_0_36px_rgba(34,211,238,0.2)] transition-transform group-hover:scale-105">
+                  <span className="relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-emerald-300/20 bg-slate-950 text-emerald-50 shadow-[0_0_36px_rgba(16,185,129,0.18)] transition-transform group-hover:scale-105">
                     {isProcessing ? (
                       <Loader2 className="h-8 w-8 animate-spin" />
                     ) : isSpeaking ? (
@@ -725,7 +783,13 @@ export function CopilotModule({ user }: CopilotModuleProps) {
                     ) : isListening ? (
                       <Mic className="h-8 w-8" />
                     ) : (
-                      <Sparkles className="h-8 w-8 text-amber-300" />
+                      <Image
+                        src="/alfred.webp"
+                        alt="Alfred"
+                        width={112}
+                        height={112}
+                        className="h-full w-full object-cover object-[50%_18%]"
+                      />
                     )}
                   </span>
                 </button>
@@ -747,8 +811,14 @@ export function CopilotModule({ user }: CopilotModuleProps) {
             </div>
           ) : messages.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center text-center">
-              <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-emerald-800 to-slate-950 shadow-lg">
-                <Sparkles className="h-10 w-10 text-amber-300" />
+              <div className="mb-4 h-20 w-20 overflow-hidden rounded-full border border-amber-400/20 bg-slate-950 shadow-lg">
+                <Image
+                  src="/alfred.webp"
+                  alt="Alfred"
+                  width={128}
+                  height={128}
+                  className="h-full w-full object-cover object-[50%_18%]"
+                />
               </div>
               <h3 className="mb-2 text-lg font-semibold">Ola, sou o Alfred</h3>
               <p className="mb-6 max-w-md text-sm text-muted-foreground">
@@ -879,7 +949,7 @@ export function CopilotModule({ user }: CopilotModuleProps) {
               aria-label={isVoiceModeActive ? "Encerrar modo voz" : "Iniciar modo voz"}
               className={
                 isVoiceModeActive
-                  ? "bg-cyan-500 text-slate-950 shadow-[0_0_22px_rgba(34,211,238,0.35)] hover:bg-cyan-400"
+                  ? "bg-emerald-700 text-emerald-50 shadow-[0_0_22px_rgba(16,185,129,0.28)] hover:bg-emerald-600"
                   : ""
               }
             >

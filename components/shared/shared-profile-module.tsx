@@ -22,7 +22,6 @@ import {
   PieChart,
   Calendar,
   History,
-  Sparkles,
   Lock,
   MoreVertical,
   Pause,
@@ -787,7 +786,7 @@ export function SharedProfileModule({ userId, userName, userEmail }: SharedProfi
               <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-rose-500/20 to-pink-500/20 animate-pulse">
                 <Heart className="h-12 w-12 text-rose-500" />
               </div>
-              <Sparkles className="absolute top-0 right-1/3 h-6 w-6 text-amber-500 animate-bounce" />
+              <Trophy className="absolute top-0 right-1/3 h-6 w-6 text-amber-500 animate-bounce" />
             </div>
 
             <div className="space-y-3">

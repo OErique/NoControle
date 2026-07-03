@@ -1,7 +1,7 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { Heart, Lightbulb, Sparkles, Target, AlertTriangle, CheckCircle } from "lucide-react"
+import { Heart, Lightbulb, Trophy, Target, AlertTriangle, CheckCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface EmpatheticMessageProps {
@@ -27,7 +27,7 @@ const typeConfig = {
     iconClass: "bg-yellow-500/20 text-yellow-500",
   },
   celebration: {
-    icon: Sparkles,
+    icon: Trophy,
     bgClass: "from-purple-500/10 to-violet-500/10 border-purple-500/30",
     iconClass: "bg-purple-500/20 text-purple-500",
   },

@@ -44,7 +44,7 @@ const planFeatures: Record<string, string[]> = {
   ],
   total: [
     "Tudo do Plus",
-    "Copiloto IA",
+    "Alfred por voz",
     "Investimentos",
     "Analise avancada",
     "Suporte prioritario",
